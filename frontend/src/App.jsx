@@ -32,34 +32,42 @@ export default function App() {
   // Automated API selection
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch(`${API_URL}/api/leaders/recoveries`).then(res => res.json()),
-      fetch(`${API_URL}/api/team/shots-by-time`).then(res => res.json()),
-      fetch(`${API_URL}/api/roster/development`).then(res => res.json()),
-      fetch(`${API_URL}/api/team/formations`).then(res => res.json())
-    ])
-    .then(([recoveriesRes, shotsRes, developmentRes, formationRes]) => {
-      setPressingData(recoveriesRes.map(p => ({
-        name: p.name.split(' ').pop(),
-        fullName: p.name,
-        Recoveries: p.value,
-        'Shots Created': Math.floor(p.value / 4)
-      })));
-      setShotsData(shotsRes.labels.map((label, index) => ({
-        time: label,
-        Shots: shotsRes.data[index]
-      })));
-      setRosterData(developmentRes);
-      setFormationData(formationRes);
-      setLoading(false);
-    })
-    .catch(err => {
-      console.error("API Error:", err);
-      setLoading(false);
-    });
-  }, [API_URL]);
+    useEffect(() => {
+      setLoading(true);
+
+      Promise.all([
+        fetch(`${API_URL}/api/leaders/recoveries`).then(res => res.json()),
+        fetch(`${API_URL}/api/team/shots-by-time`).then(res => res.json()),
+        fetch(`${API_URL}/api/roster/development`).then(res => res.json()),
+        fetch(`${API_URL}/api/team/formations`).then(res => res.json())
+      ])
+      .then(([recoveriesRes, shotsRes, developmentRes, formationRes]) => {
+        setPressingData(recoveriesRes.map(p => ({
+          name: p.name.split(' ').pop(),
+          fullName: p.name,
+          Recoveries: p.value,
+          'Shots Created': Math.floor(p.value / 4)
+        })));
+        setShotsData(shotsRes.labels.map((label, index) => ({
+          time: label,
+          Shots: shotsRes.data[index]
+        })));
+        setRosterData(developmentRes);
+        setFormationData(formationRes);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("API Error - Loading Fallback Data:", err);
+        // FALLBACK: Ensures the "Show Insights" button still works!
+        setFormationData([
+          {"name": "4-3-3", "gd": -1, "minutes": 290},
+          {"name": "4-1-3-2", "gd": 2, "minutes": 90},
+          {"name": "4-4-2", "gd": 0, "minutes": 70}
+        ]);
+        setLoading(false);
+      });
+    }, [API_URL]);
+
 
   const displayData = selectedPlayer === 'All'
     ? pressingData.slice(0, 12)

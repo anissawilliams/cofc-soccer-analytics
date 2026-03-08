@@ -7,10 +7,7 @@ app = FastAPI(title="Cougars Analytics API")
 # Ensure CORS is enabled so the React frontend (port 5173) can talk to this API (port 8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://cofc-soccer-analytics.vercel.app/"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
