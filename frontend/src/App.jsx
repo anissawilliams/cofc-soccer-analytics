@@ -9,7 +9,7 @@ export default function App() {
   const [pressingData, setPressingData] = useState([]);
   const [shotsData, setShotsData] = useState([]);
   const [rosterData, setRosterData] = useState([]);
-  const [formationData, setFormationData] = useState([]); // New Tactical State
+  const [formationData, setFormationData] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState('All');
   const [loading, setLoading] = useState(true);
 
@@ -21,22 +21,19 @@ export default function App() {
     success: '#166534'
   };
 
+  // Automated API selection: Localhost for dev, Render for production
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   useEffect(() => {
-    // Replace with your actual Render URL if it differs
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    setLoading(true);
 
-      useEffect(() => {
-        setLoading(true);
-
-        // 2. We use `${API_URL}` so all our fetches update at once
-        Promise.all([
-          fetch(`${API_URL}/api/leaders/recoveries`).then(res => res.json()),
-          fetch(`${API_URL}/api/team/shots-by-time`).then(res => res.json()),
-          fetch(`${API_URL}/api/roster/development`).then(res => res.json()),
-          fetch(`${API_URL}/api/team/formations`).then(res => res.json())
-        ])
-        .then(([recoveriesRes, shotsRes, developmentRes, formationRes]) => {
-      // 1. Map Pressing/Defensive Data
+    Promise.all([
+      fetch(`${API_URL}/api/leaders/recoveries`).then(res => res.json()),
+      fetch(`${API_URL}/api/team/shots-by-time`).then(res => res.json()),
+      fetch(`${API_URL}/api/roster/development`).then(res => res.json()),
+      fetch(`${API_URL}/api/team/formations`).then(res => res.json())
+    ])
+    .then(([recoveriesRes, shotsRes, developmentRes, formationRes]) => {
       setPressingData(recoveriesRes.map(p => ({
         name: p.name.split(' ').pop(),
         fullName: p.name,
@@ -44,27 +41,21 @@ export default function App() {
         'Shots Created': Math.floor(p.value / 4)
       })));
 
-      // 2. Map Team Shots
       setShotsData(shotsRes.labels.map((label, index) => ({
         time: label,
         Shots: shotsRes.data[index]
       })));
 
-      // 3. Set Roster Benchmarks
       setRosterData(developmentRes);
-
-      // 4. Set Formation Efficiency
       setFormationData(formationRes);
-
       setLoading(false);
     })
     .catch(err => {
       console.error("API Error:", err);
       setLoading(false);
     });
-  }, []);
+  }, [API_URL]);
 
-  // Filter Logic for the Bar Chart
   const displayData = selectedPlayer === 'All'
     ? pressingData.slice(0, 12)
     : pressingData.filter(p => p.fullName === selectedPlayer);
@@ -72,7 +63,7 @@ export default function App() {
   if (loading) return (
     <div style={{ padding: '5rem', textAlign: 'center', fontFamily: 'sans-serif' }}>
       <h2 style={{ color: colors.garnet }}>Loading Cougars Analytics...</h2>
-      <p style={{ color: '#666' }}>Waking up the Render server (may take 30 seconds)...</p>
+      <p style={{ color: '#666' }}>Connecting to {API_URL}...</p>
     </div>
   );
 
@@ -80,17 +71,13 @@ export default function App() {
     <div style={{ backgroundColor: colors.background, minHeight: '100vh', padding: '2rem', fontFamily: 'sans-serif' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
-        {/* --- HEADER --- */}
+        {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', backgroundColor: colors.cardBg, padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
           <div>
             <h1 style={{ color: colors.garnet, margin: 0 }}>Charleston Cougars Analytics</h1>
             <div style={{ marginTop: '10px' }}>
               <label style={{ marginRight: '10px', fontSize: '14px', color: '#666' }}>Filter Roster:</label>
-              <select
-                value={selectedPlayer}
-                onChange={(e) => setSelectedPlayer(e.target.value)}
-                style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ddd', cursor: 'pointer' }}
-              >
+              <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)} style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ddd', cursor: 'pointer' }}>
                 <option value="All">All Players (Top 12)</option>
                 {pressingData.map(p => (
                   <option key={p.fullName} value={p.fullName}>{p.fullName}</option>
@@ -98,15 +85,12 @@ export default function App() {
               </select>
             </div>
           </div>
-          <button
-            onClick={() => setShowInsights(!showInsights)}
-            style={{ padding: '10px 20px', backgroundColor: colors.gold, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
-          >
+          <button onClick={() => setShowInsights(!showInsights)} style={{ padding: '10px 20px', backgroundColor: colors.gold, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
             {showInsights ? 'Hide Tactical Insights' : 'Show Tactical Insights'}
           </button>
         </div>
 
-        {/* --- TACTICAL INSIGHTS PANEL --- */}
+        {/* INSIGHTS */}
         {showInsights && (
           <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', borderLeft: `6px solid ${colors.gold}`, boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 15px 0', color: colors.garnet }}>Tactical Engine: Formation Efficiency (Net GD)</h3>
@@ -126,19 +110,18 @@ export default function App() {
                 </ResponsiveContainer>
               </div>
               <p style={{ margin: 0, fontSize: '14px', color: '#444', lineHeight: '1.6' }}>
-                <strong>The 4-1-3-2 Powerplay:</strong> Analysis confirms that shifting to a compact diamond midfield improves Net Goal Difference by +2.0 over 90 minutes.
+                <strong>The 4-1-3-2 Powerplay:</strong> Diamond midfield improves Net Goal Difference by +2.0.
                 <br /><br />
-                <span style={{ color: colors.success, fontWeight: 'bold' }}>Recommendation:</span> Deploy 4-1-3-2 in trailing scenarios to maximize final-third recoveries.
+                <span style={{ color: colors.success, fontWeight: 'bold' }}>Recommendation:</span> Deploy in trailing scenarios.
               </p>
             </div>
           </div>
         )}
 
-        {/* --- MAIN CHARTS --- */}
+        {/* MAIN CHARTS */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-
           <div style={{ backgroundColor: colors.cardBg, padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ color: '#374151', marginTop: 0 }}>Attacking Threat (Team Shots)</h3>
+            <h3 style={{ color: '#374151', marginTop: 0 }}>Attacking Threat</h3>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={shotsData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
@@ -149,9 +132,8 @@ export default function App() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-
           <div style={{ backgroundColor: colors.cardBg, padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ color: '#374151', marginTop: 0 }}>Defensive Output (Recoveries)</h3>
+            <h3 style={{ color: '#374151', marginTop: 0 }}>Defensive Output</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={displayData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
@@ -166,16 +148,16 @@ export default function App() {
           </div>
         </div>
 
-        {/* --- ROSTER TRACKER --- */}
+        {/* TRACKER */}
         <div style={{ backgroundColor: colors.cardBg, padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
-          <h3 style={{ color: colors.garnet, marginTop: 0, marginBottom: '1.5rem' }}>Full Roster Development Tracker</h3>
+          <h3 style={{ color: colors.garnet, marginTop: 0, marginBottom: '1.5rem' }}>Roster Development Tracker</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
                   <th style={{ padding: '12px' }}>Player</th>
                   <th>Position</th>
-                  <th>Primary KPI</th>
+                  <th>Metric</th>
                   <th>Current</th>
                   <th>Target</th>
                   <th>Status</th>
@@ -190,11 +172,7 @@ export default function App() {
                     <td style={{ fontWeight: '600' }}>{player.Value}</td>
                     <td style={{ color: '#999' }}>{player.Goal}</td>
                     <td>
-                      <span style={{
-                        padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold',
-                        backgroundColor: player.Status === 'Target' ? '#dcfce7' : '#fee2e2',
-                        color: player.Status === 'Target' ? '#166534' : '#991b1b'
-                      }}>
+                      <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', backgroundColor: player.Status === 'Target' ? '#dcfce7' : '#fee2e2', color: player.Status === 'Target' ? '#166534' : '#991b1b' }}>
                         {player.Status}
                       </span>
                     </td>
@@ -205,21 +183,21 @@ export default function App() {
           </div>
         </div>
 
-        {/* --- GLOSSARY --- */}
+        {/* GLOSSARY */}
         <div style={{ backgroundColor: colors.cardBg, padding: '1.5rem', borderRadius: '12px', borderTop: `4px solid ${colors.gold}` }}>
           <h3 style={{ color: colors.garnet, marginTop: 0 }}>Analytics Legend</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginTop: '1rem' }}>
             <div>
-              <h4 style={{ margin: '0 0 5px 0' }}>xG (Expected Goals)</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#666', lineHeight: '1.4' }}>Measures shot quality. A 0.25 value means a player scores that chance 25% of the time.</p>
+              <h4 style={{ margin: '0 0 5px 0' }}>xG</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#666', lineHeight: '1.4' }}>Shot quality measurement.</p>
             </div>
             <div>
               <h4 style={{ margin: '0 0 5px 0' }}>Recoveries / 90</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#666', lineHeight: '1.4' }}>Possession regains normalized per 90 mins to allow fair comparisons for sub players.</p>
+              <p style={{ margin: 0, fontSize: '13px', color: '#666', lineHeight: '1.4' }}>Possession regains per match.</p>
             </div>
             <div>
               <h4 style={{ margin: '0 0 5px 0' }}>PPDA</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#666', lineHeight: '1.4' }}>Passes Allowed Per Defensive Action. Lower numbers mean higher pressing intensity.</p>
+              <p style={{ margin: 0, fontSize: '13px', color: '#666', lineHeight: '1.4' }}>High-press intensity metric.</p>
             </div>
           </div>
         </div>
