@@ -112,3 +112,12 @@ def get_roster_development():
         })
 
     return development_data
+
+@app.get("/api/team/formations")
+def get_formations():
+    # Data derived from your 'Quantifying Chaos' project analysis
+    return [
+        {"name": "4-3-3", "gd": -1, "minutes": 290},
+        {"name": "4-1-3-2", "gd": 2, "minutes": 90},
+        {"name": "4-4-2", "gd": 0, "minutes": 70}
+    ]
