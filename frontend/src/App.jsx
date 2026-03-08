@@ -21,9 +21,9 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:8000/api/leaders/recoveries').then(res => res.json()),
-      fetch('http://localhost:8000/api/team/shots-by-time').then(res => res.json()),
-      fetch('http://localhost:8000/api/roster/development').then(res => res.json())
+      fetch('https://cofc-soccer-analytics.onrender.com/api/leaders/recoveries').then(res => res.json()),
+      fetch('https://cofc-soccer-analytics.onrender.com/api/team/shots-by-time').then(res => res.json()),
+      fetch('https://cofc-soccer-analytics.onrender.com/api/roster/development').then(res => res.json())
     ])
     .then(([recoveriesRes, shotsRes, developmentRes]) => {
       setPressingData(recoveriesRes.map(p => ({
