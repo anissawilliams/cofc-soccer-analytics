@@ -24,6 +24,10 @@ export default function App() {
   const colors = {
     garnet: '#800000',
     gold: '#CFB53B',
+    goldLight: '#FFF8DC',      // Light yellow/cream for "On Target" pill background
+    goldText: '#8B7500',       // Darker gold for "On Target" text
+    pink: '#FFE4E6',           // Light pink for "Developing" pill background
+    pinkText: '#991B1B',       // Dark red/maroon for "Developing" text
     background: '#f3f4f6',
     cardBg: '#ffffff',
     success: '#166534'
@@ -188,7 +192,14 @@ export default function App() {
                     <td>{player.Value}</td>
                     <td>{player.Goal}</td>
                     <td>
-                      <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', backgroundColor: player.Status === 'Target' ? '#dcfce7' : '#fee2e2', color: player.Status === 'Target' ? '#166534' : '#991b1b' }}>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        backgroundColor: player.Status === 'On Target' ? colors.goldLight : colors.pink,
+                        color: player.Status === 'On Target' ? colors.goldText : colors.pinkText
+                      }}>
                         {player.Status}
                       </span>
                     </td>
