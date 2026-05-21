@@ -3,8 +3,9 @@ import numpy as np
 from datetime import datetime
 from ingest import load_matches, build_match_features
 from simulate import simulate_match
+from config import TEAM_INGEST_DIR
 
-ingest_dir = '../data/raw/'
+ingest_dir = TEAM_INGEST_DIR
 
 def get_team_season_profile(features, team_col='xg_cofc'):
     """Calculate season averages for a team."""

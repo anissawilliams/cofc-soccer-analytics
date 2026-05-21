@@ -14,3 +14,4 @@ REPORT_DIR   = os.path.join(OUTPUTS, 'reports')
 TEAM_INGEST_DIR = DATA_RAW
 PLAYER_INGEST_DIR = os.path.join(DATA_RAW, 'player_reports/')
 COUG_TABLE_DIR = os.path.join(OUTPUTS, 'coug_table/')
+COUG_TABLE_FIGURES = os.path.join(OUTPUTS, 'coug_table/figures')

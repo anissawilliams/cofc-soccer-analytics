@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 
-ingest_dir = '../data/raw/'
+from config import TEAM_INGEST_DIR
+ingest_dir = TEAM_INGEST_DIR
 
 def load_matches(path):
     # Read raw, skip the first 3 rows (header + 2 average rows)

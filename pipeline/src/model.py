@@ -10,9 +10,10 @@ warnings.filterwarnings('ignore')
 # Import our ingest module
 import sys
 sys.path.append('.')
+from config import TEAM_INGEST_DIR
 from ingest import load_matches, build_match_features
 
-ingest_dir = '../data/raw/'
+ingest_dir = TEAM_INGEST_DIR
 
 def prepare_features(features):
     """Select and prepare feature columns for modeling."""

@@ -9,9 +9,19 @@ from config import PLAYER_INGEST_DIR, COUG_TABLE_DIR
 warnings.filterwarnings('ignore')
 
 def file_helper(filename):
-    match_name = filename.split('_')[3] # opponent name
-    match_date = filename.split('players_', 1)[1].split('.pdf')[0]
-    return match_name, match_date
+    # filename: players_YYYY_MM_DD_OpponentName.pdf
+    stem = filename.replace('.pdf', '').replace('players_', '')
+    parts = stem.split('_')
+    # First 3 parts are date components, rest is opponent
+    if len(parts) >= 4:
+        match_date = '_'.join(parts[:3])  # YYYY_MM_DD
+        # Convert CamelCase opponent to spaced name e.g. "WilliamMary" -> "William Mary"
+        raw_opponent = '_'.join(parts[3:])
+        opponent = re.sub(r'([A-Z])', r' \1', raw_opponent).strip()
+    else:
+        match_date = stem
+        opponent = 'Unknown'
+    return opponent, match_date
 
 
 def extract_page_text(pdf_path, page_num):
@@ -36,9 +46,11 @@ def parse_player_name(text):
     return None
 
 
-def parse_match_info(text):
-    """Extract match info from page header."""
-    match = re.search(r'Charleston Cougars (\d+) [–-] (\d+) (\w.*?)\s*\((\d{2}\.\d{2}\.\d{4})\)', text)
+def parse_match_info(text, fallback_opponent=None, fallback_date=None):
+    """Extract match info from page header.
+    Falls back to filename-derived opponent/date if regex fails.
+    """
+    match = re.search(r'Charleston Cougars (\d+)\s*[–\-]\s*(\d+)\s+(.+?)\s*\((\d{2}\.\d{2}\.\d{4})\)', text)
     if match:
         return {
             'cofc_goals': int(match.group(1)),
@@ -46,7 +58,13 @@ def parse_match_info(text):
             'opponent': match.group(3).strip(),
             'date': match.group(4)
         }
-    return {}
+    # Fallback to filename-derived values so opponent never shows as nan
+    return {
+        'opponent': fallback_opponent or 'Unknown',
+        'date': fallback_date or '',
+        'cofc_goals': None,
+        'opp_goals': None,
+    }
 
 
 def parse_stat_value(text, stat_name):
@@ -69,10 +87,10 @@ def parse_stat_value(text, stat_name):
     return 0
 
 
-def parse_player_page(text):
+def parse_player_page(text, fallback_opponent=None, fallback_date=None):
     """Parse all relevant stats from a single player page."""
     name = parse_player_name(text)
-    match_info = parse_match_info(text)
+    match_info = parse_match_info(text, fallback_opponent=fallback_opponent, fallback_date=fallback_date)
 
     if not name:
         return None
@@ -178,6 +196,10 @@ def score_coug_table(stats):
 
 def parse_match_pdf(pdf_path):
     """Parse all player pages from a single match PDF."""
+    pdf_path = str(pdf_path)
+    filename = Path(pdf_path).name
+    fallback_opponent, fallback_date = file_helper(filename)
+
     result = subprocess.run(
         ['pdfinfo', pdf_path],
         capture_output=True, text=True
@@ -192,7 +214,7 @@ def parse_match_pdf(pdf_path):
         if 'P L AY E R I N M AT C H' not in text and 'G O A L K E E P E R' not in text:
             continue
 
-        stats = parse_player_page(text)
+        stats = parse_player_page(text, fallback_opponent=fallback_opponent, fallback_date=fallback_date)
         if stats and stats.get('player'):
             scores = score_coug_table(stats)
             all_players.append({**stats, **scores})
@@ -211,6 +233,11 @@ def build_season_coug_table(pdf_dir):
         if not df.empty:
             df['source_file'] = pdf_file.name
             all_matches.append(df)
+            # Save individual match CSV: coug_table_YYYY_MM_DD_Opponent.csv
+            match_label = pdf_file.stem.replace('players_', '')  # YYYY_MM_DD_Opponent
+            out_path = Path(COUG_TABLE_DIR) / f'coug_table_{match_label}.csv'
+            df.to_csv(out_path, index=False)
+            print(f"  → Saved {out_path.name}")
 
     if not all_matches:
         print("No match PDFs found.")
@@ -239,7 +266,7 @@ if __name__ == '__main__':
     import sys
 
     # Single match mode
-    pdf_path = PLAYER_INGEST_DIR + 'players_2025_11_02_UNCW.pdf'
+    pdf_path = PLAYER_INGEST_DIR + 'players_2025_10_25_WilliamMary.pdf'
     print(f"\nParsing: {pdf_path}")
     print("=" * 60)
 
@@ -252,7 +279,7 @@ if __name__ == '__main__':
     print(f"\n{len(df)} players parsed\n")
 
     # Show COUG Table for this match
-    print("COUG TABLE — CofC vs UNCW (02.11.2025)")
+    print("COUG TABLE — CofC vs WILLIAMMARY (10.25.2025)")
     print("=" * 60)
     display_cols = ['player', 'goals', 'shots_on_target', 'interceptions',
                     'clearances', 'duels_won', 'aset_score', 'peak_score', 'total_score']
@@ -260,5 +287,5 @@ if __name__ == '__main__':
     print(df[available].sort_values('total_score', ascending=False).to_string(index=False))
 
     # Save
-    df.to_csv(COUG_TABLE_DIR + '/coug_table_UNCW_match.csv', index=False)
-    print("\n✅ Saved to outputs/coug_table_coug_table_UNCW_match.csv")
+    df.to_csv(COUG_TABLE_DIR + '/coug_table_WILLIAMMARY_match.csv', index=False)
+    print("\n✅ Saved to outputs/coug_table_coug_table_WILLIAMMARY_match.csv")
