@@ -533,6 +533,7 @@ export default function COUGDashboard() {
   return (
     <div onDragOver={e => e.preventDefault()} onDrop={onDrop}
       style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Source Sans 3', sans-serif" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap');
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
@@ -772,6 +773,7 @@ export default function COUGDashboard() {
         <div style={{ fontSize: 9, color: C.muted, letterSpacing: 1.5 }}>
           DATA SOURCE: WYSCOUT + SPIIDEO · COUG TABLE v1
         </div>
+      </div>
       </div>
     </div>
   );
