@@ -551,7 +551,7 @@ export default function COUGDashboard() {
             <div style={{ fontFamily: "Oswald, sans-serif", fontSize: 42, fontWeight: 700, letterSpacing: 3, lineHeight: 1, background: `linear-gradient(90deg, ${C.text}, ${C.gold})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               COUGS TABLE
             </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 4, letterSpacing: 1.5 }}>Culture · Ownership · Unity · Grit</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4, letterSpacing: 1.5 }}>Character · Outcompete · Unity · Grit · Solve</div>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
