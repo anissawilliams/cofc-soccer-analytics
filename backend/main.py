@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import json
+import os
 
 app = FastAPI(title="Cougars Analytics API")
 
@@ -17,7 +18,8 @@ app.add_middleware(
 # Load the mock database generated from cofc_data.py
 def load_db():
     try:
-        with open('db_ready_schema.json', 'r') as f:
+        path = os.path.join(os.path.dirname(__file__), 'db_ready_schema.json')
+        with open(path, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
         return {"players": [], "player_stats": []}
