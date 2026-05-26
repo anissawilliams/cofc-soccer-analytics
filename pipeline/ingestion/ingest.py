@@ -177,7 +177,7 @@ def main():
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=Path("matches_manifest.csv"),
+        default=Path("../data/manifests/matches_manifest.csv"),
         help="Path to matches_manifest.csv (default: matches_manifest.csv)"
     )
     parser.add_argument(

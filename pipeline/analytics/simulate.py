@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 from ingest import load_matches, build_match_features
+from config import TEAM_INGEST_DIR
 
 np.random.seed(42)
-ingest_dir = '../data/raw/'
+ingest_dir = TEAM_INGEST_DIR
 
 def simulate_match(xg_home, xg_away, n_simulations=10000):
     """
