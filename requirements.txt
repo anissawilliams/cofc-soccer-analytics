@@ -1,2 +1,26 @@
-fastapi
-uvicorn
+# CofC Soccer Analytics — Application Layer
+# Install: pip install -r requirements.txt
+
+# ── Core ──────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+supabase>=2.0.0
+
+# ── API ───────────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn>=0.29.0
+
+# ── Streamlit ─────────────────────────────────────────────────
+streamlit>=1.35.0
+plotly>=5.20.0
+pandas>=2.0.0
+numpy>=1.26.0
+
+# ── Simulation / modeling ─────────────────────────────────────
+scikit-learn>=1.4.0
+xgboost>=2.0.0
+
+# ── Fuzzy matching (athlete name resolution) ──────────────────
+rapidfuzz>=3.0.0
+
+# ── Optional: AI queries (Tab 3) ─────────────────────────────
+# anthropic>=0.25.0

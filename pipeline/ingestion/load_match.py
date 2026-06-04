@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/content/drive/MyDrive/CofC_Pipeline"))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "pipeline/"))
 OUTPUTS_DIR  = PROJECT_ROOT / "outputs"
 MATCHES_DIR  = PROJECT_ROOT / "matches"
 MANIFEST_PATH = PROJECT_ROOT / "matches" / "matches_manifest.csv"
