@@ -1,7 +1,17 @@
-date,opponent_slug,opponent_name,home_away,home_score,away_score,competition,round,season,spiideo_recording_start,notes
-2025-11-02,uncw,UNCW Seahawks,home,2,1,NCAA D1 CAA,Round 10,2025,,
-2025-10-25,william_mary,William & Mary Tribe,away,3,1,NCAA D1 CAA,,2025,,
-2025-10-18,elon,Elon Phoenix,home,0,0,NCAA D1 CAA,,2025,,
-2025-10-15,winthrop,Winthrop Eagles,away,1,1,NCAA D1 Non-Conference,,2025,,
-2025-10-08,north_florida,North Florida Ospreys,home,0,3,NCAA D1 Non-Conference,,2025,,
-2025-10-05,campbell,Campbell Camels,away,2,3,NCAA D1 CAA,,2025,,
+slug,session_type,competition,venue,season,opponent,cofc_goals,opp_goals,result,added_at
+2025-08-22_south_carolina,match,Non-Conference,Patriots Point,2025,South Carolina,2,3,L,2026-06-15
+2025-08-26_davidson,match,Non-Conference,Away,2025,Davidson,2,3,L,2026-06-15
+2025-08-30_boston,match,Non-Conference,Patriots Point,2025,Boston,1,5,L,2026-06-15
+2025-09-02_north_carolina,match,Non-Conference,Patriots Point,2025,North Carolina,2,0,W,2026-06-15
+2025-09-06_elon,match,CAA,Away,2025,Elon,0,1,L,2026-06-15
+2025-09-10_usc_upstate,match,Non-Conference,Patriots Point,2025,Usc Upstate,1,0,W,2026-06-15
+2025-09-13_campbell,match,CAA,Patriots Point,2025,Campbell,0,0,D,2026-06-15
+2025-09-17_furman,match,Non-Conference,Away,2025,Furman,1,0,W,2026-06-15
+2025-09-24_georgia_southern,match,Non-Conference,Patriots Point,2025,Georgia Southern,0,1,L,2026-06-15
+2025-09-27_william_mary,match,CAA,Patriots Point,2025,William Mary,3,1,W,2026-06-15
+2025-10-05_campbell,match,CAA,Away,2025,Campbell,2,3,L,2026-06-15
+2025-10-08_north_florida,match,Non-Conference,Patriots Point,2025,North Florida,0,3,L,2026-06-15
+2025-10-15_winthrop,match,Non-Conference,Away,2025,Winthrop,1,1,D,2026-06-15
+2025-10-18_elon,match,CAA,Patriots Point,2025,Elon,0,0,D,2026-06-15
+2025-10-25_william_mary,match,CAA,Away,2025,William Mary,3,1,W,2026-06-15
+2025-11-02_uncw,match,CAA,Patriots Point,2025,Uncw,2,1,W,2026-06-15

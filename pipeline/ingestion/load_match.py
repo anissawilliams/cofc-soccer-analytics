@@ -48,9 +48,9 @@ log = logging.getLogger(__name__)
 # ── Config ────────────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "pipeline/"))
-OUTPUTS_DIR  = PROJECT_ROOT / "outputs"
+OUTPUTS_DIR  = PROJECT_ROOT / "pipeline" / "data" / "outputs"
 MATCHES_DIR  = PROJECT_ROOT / "matches"
-MANIFEST_PATH = PROJECT_ROOT / "matches" / "matches_manifest.csv"
+MANIFEST_PATH = PROJECT_ROOT / "pipeline" / "data" / "manifests" / "matches_manifest.csv"
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
@@ -241,12 +241,15 @@ def load_or_create_match(
     if not opp_id:
         log.warning(f"  Team not found for slug '{opponent_slug}' — match.away_team_id will be null")
 
-    # Goals from scored CSV if available
-    goals_for     = None
+    # Goals from manifest
+    goals_for = None
     goals_against = None
-    if scored_df is not None and not scored_df.empty:
-        goals_for     = int(scored_df["cofc_goals"].iloc[0])
-        goals_against = int(scored_df["opp_goals"].iloc[0])
+    if manifest_row:
+        gf = manifest_row.get("cofc_goals")
+        ga = manifest_row.get("opp_goals")
+        if gf != "" and ga != "" and gf is not None and ga is not None:
+            goals_for = int(float(gf))
+            goals_against = int(float(ga))
 
     result_str = None
     if goals_for is not None and goals_against is not None:
@@ -609,15 +612,9 @@ def load_match(slug: str, season: str, dry_run: bool = False):
     }
 
     # Also look for scored summary CSV (any file matching coug_table_*_SLUG pattern)
-    scored_path = None
-    for f in output_dir.parent.parent.glob(f"coug_table_*{slug.split('_')[1].upper()}*.csv"):
-        scored_path = f
-        break
-    # Fallback: check same output dir
-    if not scored_path:
-        for f in output_dir.glob("coug_table_*.csv"):
-            scored_path = f
-            break
+    scored_path = output_dir / f"{slug}_coug_scores.csv"
+    if not scored_path.exists():
+        scored_path = None
 
     log.info("Files found:")
     for name, path in files.items():

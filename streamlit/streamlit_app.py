@@ -17,14 +17,13 @@ Environment variables (.env):
 """
 
 import os
+import sys
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
 from dotenv import load_dotenv
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 load_dotenv()
 
@@ -182,51 +181,20 @@ with tab1:
 
     with col1:
         st.markdown("#### Opponent Details")
-    # ── OUTSIDE the form ──────────────────────────────────────────
-    opponents = db.get_opponents(include_non_caa=True) if DB_CONNECTED else []
-    opponent_options = ["Select opponent..."] + [t["name"] for t in opponents]
-    opponent_name = st.selectbox("Opponent", opponent_options)
+        with st.form("scouting_form"):
+            opponent_name   = st.text_input("Opponent", placeholder="e.g. UNCW Seahawks")
+            match_date      = st.date_input("Match Date")
+            competition     = st.selectbox("Competition", ["CAA", "Non-Conference", "Preseason", "Tournament"])
 
-    auto_stats = {}
-    selected_match_ids = []
+            st.markdown("#### Opponent Season Averages")
+            opp_xg_for      = st.number_input("xG For (per match)",     min_value=0.0, max_value=5.0, value=1.20, step=0.05)
+            opp_xg_against  = st.number_input("xG Against (per match)", min_value=0.0, max_value=5.0, value=1.10, step=0.05)
+            opp_pass_acc    = st.number_input("Pass Accuracy %",         min_value=0.0, max_value=100.0, value=72.0, step=0.5)
+            opp_possession  = st.number_input("Possession %",            min_value=0.0, max_value=100.0, value=48.0, step=0.5)
+            n_sims          = st.select_slider("Simulations", options=[1000, 5000, 10000], value=10000)
 
-    if opponent_name != "Select opponent..." and DB_CONNECTED:
-        past_matches = db.get_matches_by_opponent(opponent_name)
-        if past_matches:
-            match_options = {
-                f"{m['date']}  {m['result']}  {m['goals_for']}–{m['goals_against']}": m["match_id"]
-                for m in past_matches
-            }
-            selected_labels = st.multiselect(
-                "Scout from past matches (optional)",
-                list(match_options.keys()),
-            )
-            if selected_labels:
-                selected_match_ids = [match_options[s] for s in selected_labels]
-                auto_stats = db.get_opponent_stats_from_matches(selected_match_ids)
-                if auto_stats:
-                    st.caption(
-                        f"📊 {auto_stats['matches_scouted']} match(es) selected — "
-                        f"opponent scored {auto_stats['avg_goals_for']} / "
-                        f"conceded {auto_stats['avg_goals_against']} per game"
-                    )
-        else:
-            st.caption("No past matches on record — enter stats manually below.")
+            generate = st.form_submit_button("Generate Report", use_container_width=True)
 
-    # ── INSIDE the form ───────────────────────────────────────────
-    with st.form("scouting_form"):
-        match_date = st.date_input("Match Date")
-        competition = st.selectbox("Competition", ["CAA", "Non-Conference", "Preseason", "Tournament"])
-
-        st.markdown("**Opponent Season Averages**")
-        opp_xg_for = st.number_input("xG For", value=float(auto_stats.get("avg_goals_for", 1.20)), step=0.05)
-        opp_xg_against = st.number_input("xG Against", value=float(auto_stats.get("avg_goals_against", 1.10)),
-                                         step=0.05)
-        opp_pass_acc = st.number_input("Pass Accuracy %", value=72.0, step=0.5)
-        opp_possession = st.number_input("Possession %", value=48.0, step=0.5)
-        n_sims = st.select_slider("Simulations", options=[1000, 5000, 10000], value=10000)
-
-        generate = st.form_submit_button("Generate Report", use_container_width=True)
     with col2:
         if generate and opponent_name:
             if SIMULATION_AVAILABLE:
