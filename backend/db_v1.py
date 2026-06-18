@@ -71,7 +71,7 @@ def get_match_results(season: str | None = None) -> list[dict]:
     """
     try:
         query = get_client().table("match").select(
-            "id, session_id, result, goals_for, goals_against, "
+            "id, result, goals_for, goals_against, "
             "session:session_id(session_date, season, competition, venue), "
             "home_team:home_team_id(name, short_name, is_cofc), "
             "away_team:away_team_id(name, short_name, is_cofc)"
@@ -97,7 +97,6 @@ def get_match_results(season: str | None = None) -> list[dict]:
 
             results.append({
                 "match_id":     r["id"],
-                "session_id":   r.get("session_id"),
                 "date":         s.get("session_date"),
                 "season":       s.get("season"),
                 "competition":  s.get("competition"),
@@ -114,6 +113,73 @@ def get_match_results(season: str | None = None) -> list[dict]:
         print(f"[db] get_match_results error: {e}")
         return []
 
+def get_opponents(include_non_caa: bool = False) -> list[dict]:
+    """
+    All opponent teams from the team table.
+    By default returns CAA opponents only.
+    Set include_non_caa=True to include all teams except CofC.
+    """
+    try:
+        query = get_client().table("team").select(
+            "id, name, short_name, conference, is_caa_opponent, is_cofc"
+        ).eq("is_cofc", False)
+
+        if not include_non_caa:
+            query = query.eq("is_caa_opponent", True)
+
+        res = query.order("name").execute()
+        return [
+            {
+                "id":           r["id"],
+                "name":         r["name"],
+                "short_name":   r["short_name"],
+                "is_caa":       r["is_caa_opponent"],
+            }
+            for r in (res.data or [])
+        ]
+    except Exception as e:
+        print(f"[db] get_opponents error: {e}")
+        return []
+
+def get_matches_by_opponent(opponent_name: str, season: str | None = None) -> list[dict]:
+    """
+    All matches against a specific opponent.
+    Used to populate the scouting multiselect and auto-fill stats.
+    """
+    try:
+        matches = get_match_results(season)
+        return [m for m in matches if m["opponent"] == opponent_name]
+    except Exception as e:
+        print(f"[db] get_matches_by_opponent error: {e}")
+        return []
+
+
+def get_opponent_stats_from_matches(match_ids: list[str]) -> dict:
+    """
+    Aggregate opponent stats across a list of match_ids.
+    Returns averages suitable for feeding into the Monte Carlo simulation.
+    """
+    try:
+        all_matches = get_match_results()
+        selected = [m for m in all_matches if m["match_id"] in match_ids]
+
+        if not selected:
+            return {}
+
+        # Pull athlete_event stats for opponent context from these sessions
+        # For now derive from match results — xG comes later from XML
+        goals_against = [m.get("goals_against") or 0 for m in selected]
+        goals_for = [m.get("goals_for") or 0 for m in selected]
+
+        return {
+            "matches_scouted": len(selected),
+            "avg_goals_for": round(sum(goals_against) / len(selected), 2),  # opp scored = our GA
+            "avg_goals_against": round(sum(goals_for) / len(selected), 2),  # opp conceded = our GF
+            "results": [m.get("result") for m in selected],
+        }
+    except Exception as e:
+        print(f"[db] get_opponent_stats_from_matches error: {e}")
+        return {}
 
 def get_team_summary(season: str | None = None) -> dict:
     """Aggregate team record and goal stats from match results."""
@@ -376,214 +442,4 @@ def get_athlete_load(session_id: str | None = None, athlete_id: str | None = Non
         return res.data or []
     except Exception as e:
         print(f"[db] get_athlete_load error: {e}")
-        return []
-
-
-# ── New endpoints for CougTable v2 ────────────────────────────────────────────
-
-def get_seasons() -> list[str]:
-    """Distinct seasons from session table."""
-    try:
-        res = get_client().table("session").select("season").execute()
-        seasons = sorted(set(
-            r["season"] for r in (res.data or []) if r.get("season")
-        ), reverse=True)
-        return seasons
-    except Exception as e:
-        print(f"[db] get_seasons error: {e}")
-        return ["2025"]
-
-
-def get_coug_scores_with_minutes(session_id: str) -> list[dict]:
-    """
-    COUG scores joined with minutes from athlete_session_stint for one match.
-    """
-    try:
-        scores = get_client().table("coug_score").select(
-            "id, aset_score, peak_score, set_piece_score, positional_score, "
-            "load_score, total_score, calculated_at, "
-            "athlete:athlete_id(id, display_name, first_name, last_name, position, position_group), "
-            "session:session_id(session_date, season, competition)"
-        ).eq("session_id", session_id).execute()
-
-        stints = get_client().table("athlete_session_stint").select(
-            "athlete_id, minutes_on, minutes_off, started"
-        ).eq("session_id", session_id).execute()
-
-        stint_map = {
-            r["athlete_id"]: r for r in (stints.data or [])
-        }
-
-        result = []
-        for r in (scores.data or []):
-            a = r.get("athlete") or {}
-            s = r.get("session") or {}
-            stint = stint_map.get(a.get("id"), {})
-            minutes = (stint.get("minutes_off", 0) or 0) - (stint.get("minutes_on", 0) or 0)
-
-            result.append({
-                "athlete_id":       a.get("id"),
-                "name":             a.get("display_name") or f"{a.get('first_name','')} {a.get('last_name','')}",
-                "position":         a.get("position"),
-                "position_group":   a.get("position_group"),
-                "session_date":     s.get("session_date"),
-                "competition":      s.get("competition"),
-                "aset_score":       r.get("aset_score", 0),
-                "peak_score":       r.get("peak_score", 0),
-                "set_piece_score":  r.get("set_piece_score", 0),
-                "positional_score": r.get("positional_score", 0),
-                "load_score":       r.get("load_score", 0),
-                "total_score":      r.get("total_score", 0),
-                "minutes_played":   minutes,
-                "minutes_on":       stint.get("minutes_on", 0),
-                "started":          (stint.get("minutes_on") or 0) == 0 and minutes > 0,
-            })
-
-        return sorted(result, key=lambda x: x["total_score"] or 0, reverse=True)
-    except Exception as e:
-        print(f"[db] get_coug_scores_with_minutes error: {e}")
-        return []
-
-
-def get_season_leaderboard_with_minutes(season: str) -> list[dict]:
-    """
-    Season leaderboard — aggregated scores + total minutes across all matches.
-    """
-    try:
-        scores = get_client().table("coug_score").select(
-            "aset_score, peak_score, set_piece_score, positional_score, "
-            "load_score, total_score, "
-            "athlete:athlete_id(id, display_name, first_name, last_name, position, position_group), "
-            "session:session_id(season)"
-        ).execute()
-
-        stints = get_client().table("athlete_session_stint").select(
-            "athlete_id, minutes_on, minutes_off, started, "
-            "session:session_id(season)"
-        ).execute()
-
-        from collections import defaultdict
-
-        score_totals: dict = defaultdict(lambda: {
-            "name": "", "position": "", "position_group": "",
-            "matches": 0, "aset_score": 0, "peak_score": 0,
-            "set_piece_score": 0, "positional_score": 0,
-            "load_score": 0, "total_score": 0,
-        })
-
-        for r in (scores.data or []):
-            s = r.get("session") or {}
-            if s.get("season") != season:
-                continue
-            a = r.get("athlete") or {}
-            aid = a.get("id")
-            if not aid:
-                continue
-            score_totals[aid]["name"]           = a.get("display_name") or f"{a.get('first_name','')} {a.get('last_name','')}".strip()
-            score_totals[aid]["position"]       = a.get("position")
-            score_totals[aid]["position_group"] = a.get("position_group")
-            score_totals[aid]["matches"]        += 1
-            score_totals[aid]["aset_score"]     += r.get("aset_score") or 0
-            score_totals[aid]["peak_score"]     += r.get("peak_score") or 0
-            score_totals[aid]["set_piece_score"] += r.get("set_piece_score") or 0
-            score_totals[aid]["positional_score"] += r.get("positional_score") or 0
-            score_totals[aid]["load_score"]     += r.get("load_score") or 0
-            score_totals[aid]["total_score"]    += r.get("total_score") or 0
-
-        stint_totals: dict = defaultdict(lambda: {"minutes": 0, "starts": 0, "apps": 0})
-        for r in (stints.data or []):
-            s = r.get("session") or {}
-            if s.get("season") != season:
-                continue
-            aid = r["athlete_id"]
-            mins = (r.get("minutes_off") or 0) - (r.get("minutes_on") or 0)
-            stint_totals[aid]["minutes"] += mins
-            stint_totals[aid]["apps"]    += 1
-            if r.get("started"):
-                stint_totals[aid]["starts"] += 1
-
-        result = []
-        for aid, sc in score_totals.items():
-            st = stint_totals.get(aid, {})
-            result.append({
-                "athlete_id":       aid,
-                **sc,
-                "minutes_played":   st.get("minutes", 0),
-                "starts":           st.get("starts", 0),
-                "started":          st.get("starts", 0) > 0,
-            })
-
-        return sorted(result, key=lambda x: x["total_score"], reverse=True)
-    except Exception as e:
-        print(f"[db] get_season_leaderboard_with_minutes error: {e}")
-        return []
-
-
-def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
-    """Per-match scores + minutes for a single player, with opponent name."""
-    try:
-        scores = get_client().table("coug_score").select(
-            "aset_score, peak_score, set_piece_score, total_score, "
-            "session:session_id(id, session_date, season, competition)"
-        ).eq("athlete_id", athlete_id).execute()
-
-        stints = get_client().table("athlete_session_stint").select(
-            "session_id, minutes_on, minutes_off, started"
-        ).eq("athlete_id", athlete_id).execute()
-
-        # Get match data to find opponents
-        matches = get_client().table("match").select(
-            "session_id, result, goals_for, goals_against, "
-            "home_team:home_team_id(name, short_name, is_cofc), "
-            "away_team:away_team_id(name, short_name, is_cofc)"
-        ).execute()
-
-        # Build session_id → opponent name map
-        match_map = {}
-        for m in (matches.data or []):
-            home = m.get("home_team") or {}
-            away = m.get("away_team") or {}
-            if home.get("is_cofc"):
-                opponent = away.get("short_name") or away.get("name") or "Unknown"
-            else:
-                opponent = home.get("short_name") or home.get("name") or "Unknown"
-            match_map[m["session_id"]] = {
-                "opponent": opponent,
-                "result":   m.get("result"),
-                "goals_for": m.get("goals_for"),
-                "goals_against": m.get("goals_against"),
-            }
-
-        stint_map = {r["session_id"]: r for r in (stints.data or [])}
-
-        result = []
-        for r in (scores.data or []):
-            s = r.get("session") or {}
-            if s.get("season") != season:
-                continue
-            sid     = s.get("id")
-            stint   = stint_map.get(sid, {})
-            match   = match_map.get(sid, {})
-            mins_on  = stint.get("minutes_on") or 0
-            mins_off = stint.get("minutes_off") or 0
-            minutes  = mins_off - mins_on
-
-            result.append({
-                "session_date":    s.get("session_date"),
-                "opponent":        match.get("opponent", s.get("competition", "Unknown")),
-                "result":          match.get("result"),
-                "goals_for":       match.get("goals_for"),
-                "goals_against":   match.get("goals_against"),
-                "aset_score":      r.get("aset_score", 0),
-                "peak_score":      r.get("peak_score", 0),
-                "set_piece_score": r.get("set_piece_score", 0),
-                "total_score":     r.get("total_score", 0),
-                "minutes_played":  minutes,
-                "minutes_on":      mins_on,
-                "started":         mins_on == 0 and minutes > 0,
-            })
-
-        return sorted(result, key=lambda x: x["session_date"] or "", reverse=True)
-    except Exception as e:
-        print(f"[db] get_player_match_history error: {e}")
         return []

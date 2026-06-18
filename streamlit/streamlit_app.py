@@ -129,6 +129,8 @@ if not check_password():
 
 # ── Import db + simulation modules ────────────────────────────────────────────
 try:
+    sys.path.insert(0, str(Path(__file__).parent))        # streamlit/ folder
+    sys.path.insert(0, str(Path(__file__).parent.parent))  # project root (where db.py lives)
     import db
     DB_CONNECTED = True
 except Exception as e:
@@ -136,14 +138,17 @@ except Exception as e:
     st.warning(f"Database connection issue: {e}")
 
 try:
-    sys.path.insert(0, str(Path(__file__).parent))
+    sys.path.insert(0, str(Path(__file__).parent))                          # streamlit/ folder
+    sys.path.insert(0, str(Path(__file__).parent.parent))                   # project root
+    sys.path.insert(0, str(Path(__file__).parent.parent / "pipeline" / "analytics"))  # simulate.py, report.py, ingest.py, config.py
     from simulate import simulate_match
     from report import generate_scouting_report, get_team_season_profile, get_recent_form
     from ingest import load_matches, build_match_features
     from config import TEAM_INGEST_DIR
     SIMULATION_AVAILABLE = True
-except Exception:
+except Exception as e:
     SIMULATION_AVAILABLE = False
+    print(f"[streamlit_app] simulation modules not available: {e}")
 
 
 # ── Header ────────────────────────────────────────────────────────────────────

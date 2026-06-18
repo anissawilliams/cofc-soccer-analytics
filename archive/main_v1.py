@@ -11,11 +11,6 @@ DO NOT PUSH until XML scores are loaded into Supabase.
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-import db
-
 
 app = FastAPI(title="Cougars Analytics API")
 
@@ -193,29 +188,3 @@ def health():
             "supabase": "disconnected",
             "detail": str(e)
         }
-
-
-# ── CougTable v2 endpoints ────────────────────────────────────────────────────
-
-@app.get("/api/seasons")
-def get_seasons():
-    """Distinct seasons available in the database."""
-    return db.get_seasons()
-
-
-@app.get("/api/coug-scores-with-minutes")
-def get_coug_scores_with_minutes(session_id: str):
-    """COUG scores + minutes for a single match."""
-    return db.get_coug_scores_with_minutes(session_id)
-
-
-@app.get("/api/coug-leaderboard-with-minutes/{season}")
-def get_coug_leaderboard_with_minutes(season: str):
-    """Season leaderboard with aggregated scores and total minutes."""
-    return db.get_season_leaderboard_with_minutes(season)
-
-
-@app.get("/api/player-match-history/{athlete_id}")
-def get_player_match_history(athlete_id: str, season: str = "2025"):
-    """Per-match score + minutes history for a single player."""
-    return db.get_player_match_history(athlete_id, season)

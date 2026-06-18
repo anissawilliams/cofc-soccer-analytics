@@ -1,4 +1,4 @@
-# CofC Soccer Analytics — Application Layer
+cd# CofC Soccer Analytics — Application Layer
 
 Analytics dashboards, coaching tools, and data APIs for the College of Charleston Men's Soccer program.
 
