@@ -95,7 +95,7 @@ const COLS_SEASON = "28px 60px minmax(130px,1fr) 110px 44px 1fr 1fr 80px 88px 72
 const COLS_MATCH  = "28px 60px minmax(130px,1fr) 110px 1fr 1fr 80px 88px";
 
 function TableHeader({ isSeason }) {
-  const h = { fontSize: 9, color: T.muted, letterSpacing: 2, fontWeight: 800, textTransform: "uppercase" };
+  const h = { fontSize: 12, color: T.muted, letterSpacing: 2, fontWeight: 800, textTransform: "uppercase" };
   return (
     <div style={{
       display: "grid",
@@ -157,7 +157,7 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
 
       {/* Position */}
       <span style={{
-        fontSize: 9, fontWeight: 700, letterSpacing: 1,
+        fontSize: 12, fontWeight: 700, letterSpacing: 1,
         color: T.muted,
         background: T.dim, borderRadius: 3,
         padding: "2px 6px", textAlign: "center",
@@ -246,7 +246,7 @@ function PlayerPanel({ player, history }) {
         background: `linear-gradient(135deg, ${T.garnet}33 0%, transparent 100%)`,
       }}>
         <div style={{
-          fontSize: 9, fontWeight: 800, letterSpacing: 2,
+          fontSize: 12, fontWeight: 800, letterSpacing: 2,
           color: T.muted, marginBottom: 6,
         }}>PLAYER PROFILE</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: T.text, letterSpacing: 0.5 }}>
@@ -254,11 +254,11 @@ function PlayerPanel({ player, history }) {
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
           <span style={{
-            fontSize: 9, fontWeight: 700, letterSpacing: 1,
+            fontSize: 12, fontWeight: 700, letterSpacing: 1,
             background: T.dim, color: T.muted,
             padding: "3px 8px", borderRadius: 3,
           }}>{player.position}</span>
-          <span style={{ fontSize: 9, color: T.muted }}>
+          <span style={{ fontSize: 12, color: T.muted }}>
             {player.position_group}
           </span>
         </div>
@@ -266,7 +266,7 @@ function PlayerPanel({ player, history }) {
 
       {/* Score breakdown */}
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ fontSize: 9, color: T.muted, letterSpacing: 2, fontWeight: 800, marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: T.muted, letterSpacing: 2, fontWeight: 800, marginBottom: 10 }}>
           SCORE BREAKDOWN
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -281,8 +281,8 @@ function PlayerPanel({ player, history }) {
               border: `1px solid ${s.label === "TOTAL" ? T.borderGold : T.border}`,
               borderRadius: 6, padding: "10px 12px",
             }}>
-              <div style={{ fontSize: 8, color: s.color, letterSpacing: 1.5, fontWeight: 800 }}>{s.label}</div>
-              <div style={{ fontSize: 8, color: T.muted, marginBottom: 4 }}>{s.sub}</div>
+              <div style={{ fontSize: 11, color: s.color, letterSpacing: 1.5, fontWeight: 800 }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{s.sub}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: s.label === "TOTAL" ? T.gold : T.text,
                 fontVariantNumeric: "tabular-nums" }}>
                 {fmtScore(s.value)}
@@ -294,16 +294,16 @@ function PlayerPanel({ player, history }) {
 
       {/* Minutes & efficiency */}
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ fontSize: 9, color: T.muted, letterSpacing: 2, fontWeight: 800, marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: T.muted, letterSpacing: 2, fontWeight: 800, marginBottom: 10 }}>
           EFFICIENCY
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: 6, padding: "10px 12px" }}>
-            <div style={{ fontSize: 8, color: T.muted, letterSpacing: 1 }}>MINUTES</div>
+            <div style={{ fontSize: 11, color: T.muted, letterSpacing: 1 }}>MINUTES</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>{fmtMins(player.minutes_played)}</div>
           </div>
           <div style={{ background: T.surface2, border: `1px solid ${T.borderGold}`, borderRadius: 6, padding: "10px 12px" }}>
-            <div style={{ fontSize: 8, color: T.muted, letterSpacing: 1 }}>SCORE / 90</div>
+            <div style={{ fontSize: 11, color: T.muted, letterSpacing: 1 }}>SCORE / 90</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.gold }}>
               {p90 !== null ? fmtScore(p90) : "—"}
             </div>
@@ -314,7 +314,7 @@ function PlayerPanel({ player, history }) {
       {/* Match history */}
       {history.length > 0 && (
         <div style={{ padding: "16px 20px", flex: 1 }}>
-          <div style={{ fontSize: 9, color: T.muted, letterSpacing: 2, fontWeight: 800, marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: T.muted, letterSpacing: 2, fontWeight: 800, marginBottom: 10 }}>
             MATCH HISTORY
           </div>
           {history.map((m, i) => (
@@ -460,7 +460,7 @@ export default function CougTable() {
             }}>
               COUGS TABLE
             </div>
-            <div style={{ fontSize: 9, color: "#f0c0c0", letterSpacing: 3, marginTop: 3 }}>
+            <div style={{ fontSize: 12, color: "#f0c0c0", letterSpacing: 3, marginTop: 3 }}>
               COLLEGE OF CHARLESTON · MEN'S SOCCER
             </div>
           </div>
@@ -495,8 +495,8 @@ export default function CougTable() {
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
               <div>
-                <div style={{ fontSize: 8, color: t.color, letterSpacing: 2, fontWeight: 800 }}>{t.label}</div>
-                <div style={{ fontSize: 8, color: T.muted, letterSpacing: 1.5, marginTop: 1 }}>{t.sub}</div>
+                <div style={{ fontSize: 11, color: t.color, letterSpacing: 2, fontWeight: 800 }}>{t.label}</div>
+                <div style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5, marginTop: 1 }}>{t.sub}</div>
               </div>
               <div style={{
                 fontFamily: "'Oswald', 'Impact', sans-serif",
@@ -525,8 +525,8 @@ export default function CougTable() {
             borderBottom: tab === t ? `2px solid ${T.gold}` : "2px solid transparent",
             color: tab === t ? T.gold : T.muted,
             fontFamily: "'Oswald', sans-serif",
-            fontSize: 11, fontWeight: 700, letterSpacing: 2,
-            padding: "11px 20px", cursor: "pointer",
+            fontSize: 14, fontWeight: 700, letterSpacing: 2,
+            padding: "13px 24px", cursor: "pointer",
             textTransform: "uppercase", transition: "color 0.15s",
             marginBottom: -1,
           }}>
@@ -537,7 +537,7 @@ export default function CougTable() {
         {/* Match dropdown */}
         {tab === "match" && matches.length > 0 && (
           <div style={{ marginLeft: 16, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 9, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>VS</span>
+            <span style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>VS</span>
             <select
               value={selectedMatch?.session_id || selectedMatch?.match_id || ""}
               onChange={e => {
@@ -571,8 +571,8 @@ export default function CougTable() {
               background: filterPos === g ? T.garnet : "transparent",
               border: `1px solid ${filterPos === g ? T.garnetLight : T.border}`,
               color: filterPos === g ? T.gold : T.muted,
-              fontSize: 8, fontWeight: 800, letterSpacing: 1.5,
-              padding: "4px 10px", borderRadius: 3, cursor: "pointer",
+              fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
+              padding: "6px 14px", borderRadius: 3, cursor: "pointer",
               transition: "all 0.12s",
             }}>{g}</button>
           ))}
@@ -580,7 +580,7 @@ export default function CougTable() {
 
         {/* Sort */}
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <span style={{ fontSize: 8, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>SORT</span>
+          <span style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>SORT</span>
           {[
             { key: "total", label: "TOTAL" },
             { key: "aset",  label: "ASET"  },
@@ -591,8 +591,8 @@ export default function CougTable() {
               background: sortBy === s.key ? T.goldBg : "transparent",
               border: `1px solid ${sortBy === s.key ? T.gold : T.border}`,
               color: sortBy === s.key ? T.gold : T.muted,
-              fontSize: 8, fontWeight: 800, letterSpacing: 1.5,
-              padding: "4px 10px", borderRadius: 3, cursor: "pointer",
+              fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
+              padding: "6px 14px", borderRadius: 3, cursor: "pointer",
               transition: "all 0.12s",
             }}>{s.label}</button>
           ))}
@@ -660,11 +660,11 @@ export default function CougTable() {
           {[[" ASET — Defense", ASET_COLOR], ["PEAK — Offense", PEAK_COLOR], ["Set Piece", SP_COLOR]].map(([l, c]) => (
             <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
-              <span style={{ fontSize: 9, color: T.muted }}>{l}</span>
+              <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
             </div>
           ))}
         </div>
-        <span style={{ fontSize: 9, color: T.muted, letterSpacing: 1.5 }}>
+        <span style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5 }}>
           WYSCOUT · TRIAL_1 WEIGHTS · {season}
         </span>
       </div>
