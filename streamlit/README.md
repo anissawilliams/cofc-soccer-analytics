@@ -5,6 +5,7 @@ Analytics dashboards, coaching tools, and data APIs for the College of Charlesto
 Built on top of the [CofC Soccer Pipeline](https://github.com/your-org/cofc-soccer-pipeline) which handles data ingestion and Supabase loading.
 
 ---
+Use this to run!! PYTHONPATH=/Users/anissawilliams/PycharmProjects/cofc_soccer_analytics_2026:/Users/anissawilliams/PycharmProjects/cofc_soccer_analytics_2026/streamlit streamlit run streamlit_app.py
 
 ## What's in here
 

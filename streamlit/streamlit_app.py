@@ -129,12 +129,14 @@ if not check_password():
 
 # ── Import db + simulation modules ────────────────────────────────────────────
 try:
-    sys.path.insert(0, str(Path(__file__).parent))        # streamlit/ folder
-    sys.path.insert(0, str(Path(__file__).parent.parent))  # project root (where db.py lives)
+    sys.path.insert(0, str(Path(__file__).parent))
+    sys.path.insert(0, str(Path(__file__).parent.parent))
     import db
     DB_CONNECTED = True
 except Exception as e:
     DB_CONNECTED = False
+    import traceback
+    st.error(traceback.format_exc())  # shows full traceback in the app
     st.warning(f"Database connection issue: {e}")
 
 try:
