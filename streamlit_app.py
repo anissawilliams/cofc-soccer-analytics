@@ -468,7 +468,7 @@ with tab2:
             display_cols = ["name", "position", "Metric", "Value", "Goal", "Status"]
             styled = df[display_cols].rename(columns={"name": "Player", "position": "Position"})
             st.dataframe(
-                styled.style.applymap(status_color, subset=["Status"]),
+                styled.style.map(status_color, subset=["Status"]),
                 use_container_width=True, hide_index=True
             )
 
