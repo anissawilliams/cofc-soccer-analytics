@@ -27,10 +27,11 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent.parent))
 load_dotenv()
 
+logo = str(Path(__file__).parent / "cougars_logo.png")
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="CofC Soccer — Coaching Dashboard",
-    page_icon="⚽",
+    page_icon=logo,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -164,7 +165,7 @@ st.markdown("""
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/en/thumb/5/5e/College_of_Charleston_Cougars_logo.svg/200px-College_of_Charleston_Cougars_logo.svg.png", width=120)
+    st.image(logo, width=120)
     st.markdown(f"### Season Controls")
     season = st.selectbox("Season", ["2025", "2026"], index=0)
     st.divider()
@@ -191,6 +192,7 @@ with tab1:
         with st.form("scouting_form"):
             opponent_name   = st.text_input("Opponent", placeholder="e.g. UNCW Seahawks")
             match_date      = st.date_input("Match Date")
+            st.info(match_date)
             competition     = st.selectbox("Competition", ["CAA", "Non-Conference", "Preseason", "Tournament"])
 
             st.markdown("#### Opponent Season Averages")

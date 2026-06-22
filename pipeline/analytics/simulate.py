@@ -118,7 +118,9 @@ def simulate_upcoming_match(cofc_xg, opp_xg, opp_name, n_simulations=10000):
 if __name__ == '__main__':
     # Load real CofC data
     print("Loading match data...")
-    df = load_matches(ingest_dir + 'cofc_matches_2025.xlsx')
+    import os
+
+    df = load_matches(os.path.join(ingest_dir, 'cofc_matches_2025.xlsx'))
     features = build_match_features(df)
 
     # Run season simulation

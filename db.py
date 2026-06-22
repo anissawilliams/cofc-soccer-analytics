@@ -9,10 +9,25 @@ If data isn't in Supabase yet, functions return empty lists or None cleanly.
 """
 
 import os
+from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
+
+def get_env(key):
+    val = os.getenv(key)
+    if val:
+        return val
+    try:
+        import streamlit as st
+        return st.secrets[key]
+    except Exception:
+        return None
+
+url = get_env("SUPABASE_URL")
+key = get_env("SUPABASE_SERVICE_KEY")
+supabase: Client = create_client(url, key)
 
 _client: Client | None = None
 
