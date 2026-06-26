@@ -18,6 +18,7 @@ numpy>=1.26.0
 # ── Simulation / modeling ─────────────────────────────────────
 scikit-learn>=1.4.0
 xgboost>=2.0.0
+openpyxl
 
 # ── Fuzzy matching (athlete name resolution) ──────────────────
 rapidfuzz>=3.0.0
