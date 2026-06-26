@@ -24,7 +24,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
 from dotenv import load_dotenv
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 load_dotenv()
 
 logo = str(Path(__file__).parent / "cougars_logo.png")
@@ -131,7 +131,6 @@ if not check_password():
 # ── Import db + simulation modules ────────────────────────────────────────────
 try:
     sys.path.insert(0, str(Path(__file__).parent))
-    sys.path.insert(0, str(Path(__file__).parent.parent))
     import db
     DB_CONNECTED = True
 except Exception as e:
@@ -141,9 +140,8 @@ except Exception as e:
     st.warning(f"Database connection issue: {e}")
 
 try:
-    sys.path.insert(0, str(Path(__file__).parent))                          # streamlit/ folder
-    sys.path.insert(0, str(Path(__file__).parent.parent))                   # project root
-    sys.path.insert(0, str(Path(__file__).parent.parent / "pipeline" / "analytics"))  # simulate.py, report.py, ingest.py, config.py
+    sys.path.insert(0, str(Path(__file__).parent))                          # streamlit/ folder                   # project root
+    sys.path.insert(0, str(Path(__file__).parent / "pipeline" / "analytics"))  # simulate.py, report.py, ingest.py, config.py
     from simulate import simulate_match
     from report import generate_scouting_report, get_team_season_profile, get_recent_form
     from ingest import load_matches, build_match_features
