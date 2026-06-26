@@ -151,6 +151,20 @@ except Exception as e:
     SIMULATION_AVAILABLE = False
     print(f"[streamlit_app] simulation modules not available: {e}")
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_cached_opponents(season: str | None = None) -> list[str]:
+    """
+    Distinct opponent names CofC has actually played, sorted alphabetically.
+    Cached for 5 minutes so the dropdown doesn't re-hit Supabase on every rerun.
+    """
+    if not DB_CONNECTED:
+        return []
+    try:
+        matches = db.get_match_results(season)
+        return sorted({m["opponent"] for m in matches if m.get("opponent")})
+    except Exception as e:
+        print(f"[streamlit_app] get_cached_opponents error: {e}")
+        return []
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -187,9 +201,23 @@ with tab1:
 
     with col1:
         st.markdown("#### Opponent Details")
+
+        # Outside the form on purpose — forms only rerun on submit, so the
+        # conditional "Other" text box needs a live rerun to actually show up.
+        opponent_options = get_cached_opponents(season)
+        opponent_choice = st.selectbox(
+            "Opponent",
+            options=opponent_options + ["Other (not yet in system)"],
+            index=None,
+            placeholder="Select an opponent…",
+        )
+        if opponent_choice == "Other (not yet in system)":
+            opponent_name = st.text_input("Opponent name", placeholder="e.g. UNCW Seahawks")
+        else:
+            opponent_name = opponent_choice
+
         with st.form("scouting_form"):
-            opponent_name   = st.text_input("Opponent", placeholder="e.g. UNCW Seahawks")
-            match_date      = st.date_input("Match Date")
+            match_date = st.date_input("Match Date")
             st.info(match_date)
             competition     = st.selectbox("Competition", ["CAA", "Non-Conference", "Preseason", "Tournament"])
 
