@@ -41,7 +41,6 @@ dist/
 # ── Data & outputs ────────────────────────────────────────────
 outputs/
 *.csv
-*.xlsx
 *.json
 *.xml
 !db_ready_schema.json.bak
