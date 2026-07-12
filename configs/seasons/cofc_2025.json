@@ -1,0 +1,36 @@
+{
+  "org_key": "cofc",
+  "season": "2025",
+  "team_match_stats_path": "pipeline/data/raw/cofc_matches_2025.xlsx",
+  "schedule_path": null,
+  "outputs": {
+    "scouting_dir": "pipeline/outputs/reports/scouting/2025",
+    "model_dir": "pipeline/outputs/reports/scouting/2025/models"
+  },
+  "modeling": {
+    "outcome_labels": ["W", "D", "L"],
+    "random_state": 42,
+    "minimum_recommended_matches": 30,
+    "feature_columns": [
+      "xg_cofc",
+      "xg_opp",
+      "xg_diff",
+      "shots_cofc",
+      "shots_opp",
+      "shot_diff",
+      "shots_on_target_cofc",
+      "shots_on_target_opp",
+      "pass_accuracy_pct_cofc",
+      "pass_accuracy_pct_opp",
+      "pass_acc_diff",
+      "possession_pct_cofc",
+      "possession_pct_opp",
+      "possession_diff",
+      "recoveries_cofc",
+      "recoveries_opp",
+      "recovery_diff",
+      "duels_won_cofc",
+      "duels_won_opp"
+    ]
+  }
+}

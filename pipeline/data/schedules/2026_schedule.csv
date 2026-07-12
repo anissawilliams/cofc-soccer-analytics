@@ -1,0 +1,20 @@
+season,match_date,opponent,opponent_short,home_away,neutral_site,competition,conference_match,venue,city,state,match_status,notes,wyscout_match_id,wyscout_team_id,opponent_team_id
+2026,2026-08-07,Wofford,WOF,A,false,Exhibition,false,Spartanburg,Spartanburg,SC,scheduled,,,,e5533dc2-0782-45bc-b1bc-c661841846f0
+2026,2026-08-10,USC Lancaster,USCL,H,false,Exhibition,false,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,14c4174e-5704-40bf-be2e-464717c409aa
+2026,2026-08-14,Jacksonville,JAX,A,false,Exhibition,false,Jacksonville,Jacksonville,FL,scheduled,,,,09fbebf5-2af6-4925-99c4-a3106287f3f0
+2026,2026-08-20,Davidson,Davidson,H,false,Non-Conference,false,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,573df6c0-5c09-4ca9-9584-4f17ec99e88b
+2026,2026-08-23,Florida Gulf Coast,FGCU,H,false,Non-Conference,false,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,ce14c069-ed79-4d79-9aee-06148f4446ca
+2026,2026-08-28,Campbell,Campbell,H,false,CAA,true,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,d7a629ec-eb61-425e-be96-db5e5c95d62d
+2026,2026-09-05,William & Mary,W&M,A,false,CAA,true,Williamsburg,Williamsburg,VA,scheduled,,,,57c7d074-da92-4c39-8bc2-a3a43cff3f30
+2026,2026-09-08,Winthrop,Winthrop,H,false,Non-Conference,false,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,c7ee2788-173c-487c-852a-88f72cf66c65
+2026,2026-09-12,USC Upstate,USC Upstate,A,false,Non-Conference,false,Spartanburg,Spartanburg,SC,scheduled,,,,0819232c-4bdd-40d5-a50e-2a27d47e6628
+2026,2026-09-15,South Carolina,South Carolina,A,false,Non-Conference,false,Columbia,Columbia,SC,scheduled,,,,1637f7ba-2118-4830-b925-487ff2427850
+2026,2026-09-19,Elon,Elon,A,false,CAA,true,Elon,Elon,NC,scheduled,,,,3a69b1ae-d77f-40b8-9424-1999fa9931c3
+2026,2026-09-27,UNCW,UNCW,H,false,CAA,true,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,c567c25e-cfa3-411e-a0e9-36108943e80c
+2026,2026-10-03,Campbell,Campbell,A,false,CAA,true,Buies Creek,Buies Creek,NC,scheduled,,,,d7a629ec-eb61-425e-be96-db5e5c95d62d
+2026,2026-10-06,Furman,Furman,H,false,Non-Conference,false,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,db83a53c-f5a0-4ded-9f94-f81f575a6824
+2026,2026-10-10,Elon,Elon,H,false,CAA,true,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,3a69b1ae-d77f-40b8-9424-1999fa9931c3
+2026,2026-10-13,North Florida,North Florida,A,false,Non-Conference,false,Jacksonville,Jacksonville,FL,scheduled,,,,f8201014-3a64-49ca-a4c5-0ae11705818d
+2026,2026-10-17,William & Mary,W&M,H,false,CAA,true,Ralph Lundy Field,Mount Pleasant,SC,scheduled,,,,57c7d074-da92-4c39-8bc2-a3a43cff3f30
+2026,2026-10-24,UNCW,UNCW,A,false,CAA,true,Wilmington,Wilmington,NC,scheduled,,,,c567c25e-cfa3-411e-a0e9-36108943e80c
+2026,2026-10-30,Mercer,Mercer,A,false,Non-Conference,false,Macon,Macon,GA,scheduled,,,,f9266c7a-3f37-4d30-b46f-fbb5e81cbd4a

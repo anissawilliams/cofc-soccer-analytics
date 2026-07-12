@@ -4,9 +4,44 @@ Handles: sportscode, player events, team events, effective time
 """
 
 import re
+import csv
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
+# ── Roster loading ────────────────────────────────────────────
+
+def load_cofc_roster(path: Path) -> dict:
+    """
+    Load CofC roster CSV.
+    Returns:
+        cofc_roster — dict {jersey: set(valid_names)}.
+
+    A jersey number can have more than one valid name if a player's jersey
+    number changed mid-season but is still the same person (e.g. jersey 14
+    legitimately maps to both "E. Goetzke" and "E. Emanuele" for the 2025
+    season — same athlete, name changed when their number changed).
+
+    Roster CSV format: number,name — one row per (jersey, name) pair.
+    A player with multiple valid names just gets multiple rows with the
+    same jersey number.
+
+    IMPORTANT: jersey number alone is NOT a safe filter key. Jersey numbers
+    are not unique across two teams on the same pitch — an opponent can
+    wear the same number as a CofC player. Filtering must check that BOTH
+    the jersey number AND the name match a CofC roster entry, otherwise
+    opponent events silently pass through.
+    """
+    cofc_roster = {}
+    with open(path, newline="") as f:
+        for row in csv.DictReader(f):
+            if row.get("number"):
+                jersey = str(row["number"]).strip()
+                name = row["name"].strip()
+                cofc_roster.setdefault(jersey, set()).add(_normalize_name(name))
+    return cofc_roster
+
+
+def _normalize_name(name: str) -> str:
+    return name.strip().lower()
 
 
 # ── Encoding detection ────────────────────────────────────────
@@ -25,16 +60,26 @@ def read_xml(path: Path) -> ET.Element:
 
 # ── Sportscode XML (richest — use this as primary) ────────────
 
-def parse_sportscode(path: Path) -> dict:
+def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
     """
     Parse Wyscout Sportscode XML.
     Returns player events, team events, and half markers.
+
+    If roster_path is provided, filters player_events to CofC players only
+    using jersey number + player-name matching. Without it, both teams'
+    players are included.
     """
-    root = ET.fromstring(path.read_bytes().decode("utf-16"))
+    root = read_xml(path)
+
+    cofc_roster = None
+    if roster_path and Path(roster_path).exists():
+        cofc_roster = load_cofc_roster(Path(roster_path))
+        print(f"  Roster filter: {len(cofc_roster)} CofC players loaded")
 
     halves        = {}
     player_events = []
     team_events   = []
+    skipped       = 0
     player_re     = re.compile(r"\((\d+)\)\s+(.+)")
 
     for inst in root.findall(".//instance"):
@@ -57,6 +102,14 @@ def parse_sportscode(path: Path) -> dict:
         if m:
             jersey  = m.group(1)
             name    = m.group(2).strip()
+
+            if cofc_roster is not None:
+                valid_names = cofc_roster.get(jersey)
+                if valid_names is None or _normalize_name(name) not in valid_names:
+                    skipped += 1
+                    continue
+                # name already matches — never overwrite a name that didn't match
+
             outcome = (
                 "Plus"    if "Plus"    in labels else
                 "Minus"   if "Minus"   in labels else
@@ -80,8 +133,9 @@ def parse_sportscode(path: Path) -> dict:
                 "labels": labels,
             })
 
+    filter_msg = f" | {skipped} opponent events filtered out" if cofc_roster else " | ⚠️  no roster filter applied"
     print(f"  Sportscode: {len(player_events)} player events, "
-          f"{len(team_events)} team events | halves: {halves}")
+          f"{len(team_events)} team events | halves: {halves}{filter_msg}")
     return {
         "halves":        halves,
         "player_events": player_events,

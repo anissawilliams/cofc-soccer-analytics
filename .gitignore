@@ -44,7 +44,13 @@ outputs/
 *.json
 *.xml
 !db_ready_schema.json.bak
+!configs/
+!configs/**/*.json
 
+data/
+!pipeline/data/
+!pipeline/data/schedules/
+!pipeline/data/schedules/*.csv
 # ── Secrets ───────────────────────────────────────────────────
 *.pem
 *.key

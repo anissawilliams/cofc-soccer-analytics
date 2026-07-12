@@ -31,6 +31,8 @@ import argparse
 import logging
 from pathlib import Path
 from datetime import datetime
+import ast
+from collections import defaultdict
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -47,10 +49,14 @@ log = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "pipeline/"))
-OUTPUTS_DIR  = PROJECT_ROOT / "pipeline" / "data" / "outputs"
-MATCHES_DIR  = PROJECT_ROOT / "matches"
-MANIFEST_PATH = PROJECT_ROOT / "pipeline" / "data" / "manifests" / "matches_manifest.csv"
+from source_paths import get_source_paths
+
+PATHS = get_source_paths()
+PROJECT_ROOT = PATHS.repo_root
+PIPELINE_ROOT = PATHS.pipeline_root
+OUTPUTS_DIR = PATHS.parsed_outputs_dir
+MATCHES_DIR = PATHS.matches_dir
+MANIFEST_PATH = PATHS.manifest_path
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
@@ -391,6 +397,54 @@ def load_stints(
 
 # ── Athlete events ────────────────────────────────────────────────────────────
 
+def _same_event_time(left, right, tolerance: float = 0.001) -> bool:
+    if left is None and right is None:
+        return True
+    if left is None or right is None:
+        return False
+    return abs(float(left) - float(right)) <= tolerance
+
+
+def athlete_event_exists(sb: Client, payload: dict) -> bool:
+    """
+    Return True when the same source-backed evidence row already exists.
+
+    This protects reruns even before database unique indexes are added. The
+    matching key mirrors the proposed Supabase guardrail in
+    schema/2026_07_idempotency_guardrails.sql: athlete, session, metric, source,
+    collection method, event time, and raw context.
+    """
+    query = (
+        sb.table("athlete_event")
+        .select("id, event_time, raw_value_context")
+        .eq("athlete_id", payload["athlete_id"])
+        .eq("session_id", payload["session_id"])
+        .eq("metric_id", payload["metric_id"])
+        .eq("source_id", payload["source_id"])
+        .eq("collection_method", payload.get("collection_method"))
+        .limit(50)
+    )
+    rows = query.execute().data or []
+    expected_time = payload.get("event_time")
+    expected_context = payload.get("raw_value_context") or {}
+    for row in rows:
+        if not _same_event_time(row.get("event_time"), expected_time):
+            continue
+        if (row.get("raw_value_context") or {}) == expected_context:
+            return True
+    return False
+
+
+def insert_athlete_event_if_new(sb: Client, payload: dict, dry_run: bool) -> bool:
+    """Insert one athlete_event payload. Returns False when it is a duplicate."""
+    if dry_run:
+        return True
+    if athlete_event_exists(sb, payload):
+        return False
+    sb.table("athlete_event").insert(payload).execute()
+    return True
+
+
 def get_or_create_source(sb: Client, platform: str, label: str, priority: int, dry_run: bool) -> str:
     existing = (
         sb.table("data_source")
@@ -433,7 +487,7 @@ def load_attributed_events(
         r["raw_code"].lower(): r for r in tag_map_rows
     }
 
-    inserted = skipped_unscoreable = skipped_no_athlete = skipped_no_metric = 0
+    inserted = skipped_duplicate = skipped_unscoreable = skipped_no_athlete = skipped_no_metric = 0
 
     for _, row in attributed_df.iterrows():
         raw_code = str(row.get("subtype", "")).strip()
@@ -482,13 +536,221 @@ def load_attributed_events(
             },
         }
 
-        if not dry_run:
-            sb.table("athlete_event").insert(payload).execute()
-        inserted += 1
+        if insert_athlete_event_if_new(sb, payload, dry_run):
+            inserted += 1
+        else:
+            skipped_duplicate += 1
 
     log.info(
         f"  Attributed events: {inserted} loaded | "
+        f"{skipped_duplicate} duplicates | "
         f"{skipped_unscoreable} non-scorable | "
+        f"{skipped_no_athlete} no athlete | "
+        f"{skipped_no_metric} no metric"
+    )
+
+
+# ── Wyscout label taxonomy (matches notebook Step 6 exactly) ──────────────────
+
+WYSCOUT_SCORABLE_LABELS = {
+    # ASET — Defense
+    "Vol_Interception": "ASET",
+    "Tackles": "ASET",
+    "Clearances": "ASET",
+    "Anticipated": "ASET",
+    "Anticipation": "ASET",
+    "Pressing duel": "ASET",
+    "Loose ball duel": "ASET",
+    "Defensive duel": "ASET",
+    "1VS1": "ASET",
+    # PEAK — Offense
+    "Goal": "PEAK",
+    "Assists": "PEAK",
+    "Key passes": "PEAK",
+    "Smart pass": "PEAK",
+    "Smart passes": "PEAK",
+    "Opportunity": "PEAK",
+    # Set Piece
+    "Saves": "ASET",
+    "Free kick goal": "PEAK",
+    "Free kick shot": "PEAK",
+    # Positional
+    "Aerial duels": "ASET",
+    "Cross": "PEAK",
+    "Shots": "PEAK",
+}
+
+# Outcome filter tiers
+PLUS_ONLY = {
+    "Clearances", "Tackles", "Anticipated", "Anticipation",
+    "Key passes", "Smart pass", "Smart passes",
+    "Opportunity", "Free kick shot",
+}
+NON_MINUS = {
+    "Defensive duel", "1VS1", "Pressing duel", "Loose ball duel",
+}
+ALWAYS_COUNT = {
+    "Goal", "Assists", "Vol_Interception", "Saves", "Free kick goal",
+    "Aerial duels", "Cross", "Shots",
+}
+
+# Positional restrictions
+CB_ONLY = {"Aerial duels"}
+WB_ONLY = {"Cross"}
+FWD_ONLY = {"Shots"}
+GK_SKIP = {"Goal", "Free kick goal"}
+GK_ONLY = {"Saves"}
+
+CB_POS  = {"CB"}
+WB_POS = {"WB", "RB", "LB"}
+FWD_POS = {"F", "W", "F/W", "WF"}
+GK_POS = {"GK"}
+
+# Alias map: notebook label → metric_definition.name (where they differ)
+LABEL_TO_METRIC_NAME = {
+    "Goal": "Goal (scorer)",
+    "Assists": "Assist",
+    # Everything else: metric_definition.name == the label itself
+}
+
+WB_CROSS_THRESHOLD = 8
+
+
+def load_wyscout_player_events(
+        sb: Client,
+        session_id: str,
+        players_df: pd.DataFrame,
+        athlete_map: dict[str, str],
+        metric_map: dict[str, str],
+        source_id: str,
+        dry_run: bool,
+):
+    """
+    Load individual Wyscout events from the clean _players.csv into athlete_event.
+    Each qualifying (event_row, label) pair → one athlete_event row.
+
+    Applies the same outcome filters and positional restrictions as the
+    notebook's Step 6 scoring cell, but stores raw evidence (raw_value=1.0)
+    rather than computing scores. Scoring runs downstream.
+
+    Requires the athlete table to have a 'position' column for positional
+    filtering. Falls back to no positional filtering if position is unavailable.
+    """
+    # ── Load athlete positions from the db ─────────────────────────────────
+    athlete_rows = sb.table("athlete").select("id, display_name, position").execute().data
+    pos_lookup = {}  # {athlete_id: position}
+    for a in athlete_rows:
+        pos_lookup[a["id"]] = (a.get("position") or "").strip()
+
+    # ── Pre-count crosses per player (for WB 8-cross threshold) ────────────
+    cross_counts = defaultdict(int)
+    for _, row in players_df.iterrows():
+        try:
+            labels = ast.literal_eval(str(row["labels"]))
+        except Exception:
+            continue
+        if "Cross" in labels:
+            norm = normalize_name(str(row["name"]))
+            cross_counts[norm] += 1
+
+    # ── Process events ─────────────────────────────────────────────────────
+    inserted = 0
+    skipped_no_athlete = 0
+    skipped_no_metric = 0
+    skipped_outcome = 0
+    skipped_position = 0
+    skipped_duplicate = 0
+
+    for _, row in players_df.iterrows():
+        player_name = str(row["name"])
+        norm = normalize_name(player_name)
+        athlete_id = athlete_map.get(norm)
+        if not athlete_id:
+            skipped_no_athlete += 1
+            continue
+
+        outcome = str(row.get("outcome", "Unknown"))
+        pos = pos_lookup.get(athlete_id, "")
+
+        try:
+            labels = ast.literal_eval(str(row["labels"]))
+        except Exception:
+            continue
+
+        event_time = float(row["start"]) if pd.notna(row.get("start")) else None
+
+        for label in labels:
+            if label not in WYSCOUT_SCORABLE_LABELS:
+                continue
+
+            # ── Positional restrictions ────────────────────────────────
+            if label in GK_SKIP and pos in GK_POS:
+                skipped_position += 1
+                continue
+            if label in GK_ONLY and pos not in GK_POS:
+                skipped_position += 1
+                continue
+            if label in CB_ONLY and pos not in CB_POS:
+                skipped_position += 1
+                continue
+            if label in FWD_ONLY and pos not in FWD_POS:
+                skipped_position += 1
+                continue
+            if label in WB_ONLY:
+                if pos not in WB_POS:
+                    skipped_position += 1
+                    continue
+                if cross_counts.get(norm, 0) < WB_CROSS_THRESHOLD:
+                    skipped_position += 1
+                    continue
+
+            # ── Outcome filtering ──────────────────────────────────────
+            if label in PLUS_ONLY and outcome != "Plus":
+                skipped_outcome += 1
+                continue
+            if label in NON_MINUS and outcome == "Minus":
+                skipped_outcome += 1
+                continue
+            # ALWAYS_COUNT: no filtering needed
+
+            # ── Resolve metric_id ──────────────────────────────────────
+            metric_name = LABEL_TO_METRIC_NAME.get(label, label)
+            metric_id = metric_map.get(normalize_name(metric_name))
+            if not metric_id:
+                log.warning(f"  Player events: no metric_id for label '{label}' (looked up '{metric_name}')")
+                skipped_no_metric += 1
+                continue
+
+            # ── Build payload ──────────────────────────────────────────
+            category = WYSCOUT_SCORABLE_LABELS[label]
+            payload = {
+                "athlete_id": athlete_id,
+                "session_id": session_id,
+                "metric_id": metric_id,
+                "source_id": source_id,
+                "raw_value": 1.0,
+                "collection_method": "auto",
+                "manually_tagged": False,
+                "event_time": event_time,
+                "raw_value_context": {
+                    "wyscout_label": label,
+                    "outcome": outcome,
+                    "category": category,
+                    "all_labels": labels,
+                    "raw_code": row.get("raw_code"),
+                },
+            }
+
+            if insert_athlete_event_if_new(sb, payload, dry_run):
+                inserted += 1
+            else:
+                skipped_duplicate += 1
+
+    log.info(
+        f"  Wyscout player events: {inserted} loaded | "
+        f"{skipped_duplicate} duplicates | "
+        f"{skipped_outcome} filtered by outcome | "
+        f"{skipped_position} filtered by position | "
         f"{skipped_no_athlete} no athlete | "
         f"{skipped_no_metric} no metric"
     )
@@ -597,7 +859,7 @@ def load_match(slug: str, season: str, dry_run: bool = False):
     log.info(f"Loading match: {slug}  (dry_run={dry_run})")
     log.info(f"{'='*60}")
 
-    sb = get_client() if not dry_run else None
+    sb = get_client()  # always connect — dry_run only skips inserts, not lookups
 
     # Locate files
     output_dir = OUTPUTS_DIR / season / slug
@@ -632,14 +894,6 @@ def load_match(slug: str, season: str, dry_run: bool = False):
 
     if dry_run:
         log.info("\n[DRY RUN MODE — no writes to Supabase]\n")
-        # Just report what would happen
-        if minutes_df is not None:
-            log.info(f"  Would upsert {len(minutes_df)} athletes from minutes.csv")
-        if attributed_df is not None:
-            log.info(f"  Would load {len(attributed_df)} attributed events")
-        if scored_df is not None:
-            log.info(f"  Would load raw stats for {len(scored_df)} players from scored CSV")
-        return
 
     # ── 1. Session + match ─────────────────────────────────────────────────
     log.info("\n→ Session + Match")
@@ -655,6 +909,8 @@ def load_match(slug: str, season: str, dry_run: bool = False):
         all_names.update(attributed_df["player_name"].dropna().tolist())
     if scored_df is not None:
         all_names.update(scored_df["player"].dropna().tolist())
+    if players_df is not None:
+        all_names.update(players_df["name"].dropna().tolist())
 
     athlete_map = upsert_athletes(sb, list(all_names), dry_run)
     log.info(f"  Athlete map: {len(athlete_map)} entries")
@@ -674,6 +930,17 @@ def load_match(slug: str, season: str, dry_run: bool = False):
         source_id = get_or_create_source(sb, "spideo", f"Spiideo XML — {slug}", SOURCE_PRIORITY["xml_attributed"], dry_run)
         load_attributed_events(sb, session_id, attributed_df, athlete_map, metric_map, source_id, dry_run)
 
+    # ── 5b. Wyscout player events (players.csv — fills gaps) ──────────────
+    if players_df is not None:
+        log.info("\n→ Wyscout Player Events (players.csv)")
+        source_id = get_or_create_source(
+            sb, "wyscout", f"Wyscout Sportscode — {slug}",
+            SOURCE_PRIORITY["xml_players"], dry_run
+        )
+        load_wyscout_player_events(
+                sb, session_id, players_df, athlete_map,
+                metric_map, source_id, dry_run
+        )
     # ── 6. Wyscout stat events (scored CSV — fills gaps, lower trust) ──────
     if scored_df is not None:
         log.info("\n→ Wyscout Stat Events (scored CSV)")

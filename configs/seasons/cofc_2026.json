@@ -1,0 +1,37 @@
+{
+  "org_key": "cofc",
+  "season": "2026",
+  "team_match_stats_path": null,
+  "schedule_path": "pipeline/data/schedules/2026_schedule.csv",
+  "outputs": {
+    "scouting_dir": "pipeline/outputs/reports/scouting/2026",
+    "model_dir": "pipeline/outputs/reports/scouting/2026/models",
+    "schedule_dir": "pipeline/outputs/reports/scouting/2026/schedule"
+  },
+  "modeling": {
+    "outcome_labels": ["W", "D", "L"],
+    "random_state": 42,
+    "minimum_recommended_matches": 30,
+    "feature_columns": [
+      "xg_cofc",
+      "xg_opp",
+      "xg_diff",
+      "shots_cofc",
+      "shots_opp",
+      "shot_diff",
+      "shots_on_target_cofc",
+      "shots_on_target_opp",
+      "pass_accuracy_pct_cofc",
+      "pass_accuracy_pct_opp",
+      "pass_acc_diff",
+      "possession_pct_cofc",
+      "possession_pct_opp",
+      "possession_diff",
+      "recoveries_cofc",
+      "recoveries_opp",
+      "recovery_diff",
+      "duels_won_cofc",
+      "duels_won_opp"
+    ]
+  }
+}
