@@ -53,5 +53,11 @@ COFC_SOURCE_STORAGE_PREFIX=cofc
 When enabled, parsers download missing Storage files into
 `COFC_SOURCE_CACHE_DIR` and then parse the cached local copy.
 
+Register each Storage object in `public.source_file`. The schema migration is:
+
+```text
+schema/2026_07_source_file.sql
+```
+
 The pipeline defaults still point here so a fully local setup works, but the
 repo should not grow every time new match exports arrive.

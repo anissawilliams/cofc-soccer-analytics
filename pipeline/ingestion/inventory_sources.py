@@ -18,10 +18,13 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 from source_paths import get_source_paths
 
@@ -37,6 +40,12 @@ class MatchInventory:
     effective_time_xml: bool
     wyscout_pdf_report: bool
     spiideo_xml: bool
+    sportscode_source: str
+    player_events_source: str
+    team_events_source: str
+    effective_time_source: str
+    wyscout_pdf_source: str
+    spiideo_source: str
     parsed_output_dir: bool
     legacy_output_dir: bool
     players_csv: bool
@@ -78,15 +87,63 @@ def _exists_any(match_dir: Path, names: list[str], patterns: list[str] | None = 
     return False
 
 
+def get_client_or_none():
+    load_dotenv()
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not url or not key:
+        return None
+    try:
+        from supabase import create_client
+    except ImportError:
+        return None
+    return create_client(url, key)
+
+
+def fetch_source_file_rows(season: str) -> dict[tuple[str, str], dict]:
+    client = get_client_or_none()
+    if client is None:
+        return {}
+    try:
+        response = (
+            client.table("source_file")
+            .select("match_slug,source_type,storage_bucket,storage_path,upload_status,parse_status")
+            .eq("season", str(season))
+            .eq("is_active", True)
+            .execute()
+        )
+    except Exception as exc:
+        print(f"Warning: could not fetch source_file rows: {exc}", file=sys.stderr)
+        return {}
+    rows = {}
+    for row in response.data or []:
+        key = (str(row.get("match_slug") or ""), str(row.get("source_type") or ""))
+        if key[0] and key[1]:
+            rows[key] = row
+    return rows
+
+
+def source_status(local_exists: bool, storage_row: dict | None) -> str:
+    if local_exists:
+        return "local+storage" if storage_row else "local"
+    if storage_row:
+        status = storage_row.get("upload_status") or "registered"
+        return "storage" if status == "uploaded" else f"storage_{status}"
+    return "missing"
+
+
 def inventory_match(
     season: str,
     slug: str,
     require_spiideo: bool = False,
+    source_file_rows: dict[tuple[str, str], dict] | None = None,
 ) -> MatchInventory:
     paths = get_source_paths()
     match_dir = paths.matches_dir / str(season) / slug
     output_dir = paths.parsed_outputs_dir / str(season) / slug
     legacy_output_dir = paths.legacy_data_outputs_dir / str(season) / slug
+
+    source_file_rows = source_file_rows or {}
 
     sportscode = _exists_any(match_dir, [f"{slug}_cfc_sportscode.xml"])
     player_events = _exists_any(
@@ -99,30 +156,43 @@ def inventory_match(
     spiideo = _exists_any(match_dir, [f"{slug}_spiideo.xml"])
     wyscout_pdf = _has_pdf_for_slug(paths.wyscout_pdf_dir, slug)
 
+    sportscode_source = source_status(sportscode, source_file_rows.get((slug, "sportscode")))
+    player_events_source = source_status(player_events, source_file_rows.get((slug, "player_events")))
+    team_events_source = source_status(team_events, source_file_rows.get((slug, "team_events")))
+    effective_time_source = source_status(effective_time, source_file_rows.get((slug, "effective_time")))
+    wyscout_pdf_source = source_status(wyscout_pdf, source_file_rows.get((slug, "pdf_report")))
+    spiideo_source = "local" if spiideo else "missing"
+
     players_csv = (output_dir / f"{slug}_players.csv").exists()
     minutes_csv = (output_dir / f"{slug}_minutes.csv").exists()
     attributed_csv = (output_dir / f"{slug}_attributed.csv").exists()
     coug_scores_csv = (output_dir / f"{slug}_coug_scores.csv").exists()
 
     notes = []
-    if not match_dir.exists():
+    if not match_dir.exists() and not any(
+        source != "missing"
+        for source in [
+            sportscode_source, player_events_source, team_events_source,
+            effective_time_source, wyscout_pdf_source, spiideo_source,
+        ]
+    ):
         notes.append("missing match dir")
-    if sportscode and not player_events:
+    if sportscode_source != "missing" and player_events_source == "missing":
         notes.append("sportscode present; player-events XML missing/optional")
-    if not sportscode:
+    if sportscode_source == "missing":
         notes.append("missing sportscode XML")
-    if not effective_time:
+    if effective_time_source == "missing":
         notes.append("missing effective-time XML")
-    if not wyscout_pdf:
+    if wyscout_pdf_source == "missing":
         notes.append("missing Wyscout PDF report")
-    if require_spiideo and not spiideo:
+    if require_spiideo and spiideo_source == "missing":
         notes.append("missing Spiideo XML")
     if legacy_output_dir.exists() and not output_dir.exists():
         notes.append("only legacy pipeline/data/outputs exists")
 
-    if sportscode and (players_csv or output_dir.exists()):
+    if sportscode_source != "missing" and (players_csv or output_dir.exists()):
         status = "ready_or_parsed"
-    elif sportscode:
+    elif sportscode_source != "missing":
         status = "raw_ready"
     else:
         status = "incomplete"
@@ -137,6 +207,12 @@ def inventory_match(
         effective_time_xml=effective_time,
         wyscout_pdf_report=wyscout_pdf,
         spiideo_xml=spiideo,
+        sportscode_source=sportscode_source,
+        player_events_source=player_events_source,
+        team_events_source=team_events_source,
+        effective_time_source=effective_time_source,
+        wyscout_pdf_source=wyscout_pdf_source,
+        spiideo_source=spiideo_source,
         parsed_output_dir=output_dir.exists(),
         legacy_output_dir=legacy_output_dir.exists(),
         players_csv=players_csv,
@@ -174,22 +250,26 @@ def find_slugs(
     if slug:
         return [slug]
     season_dir = paths.matches_dir / str(season)
-    if not season_dir.exists():
-        raise FileNotFoundError(f"Match season directory not found: {season_dir}")
 
     slugs = set(_manifest_slugs(paths.manifest_path, season))
-    for path in season_dir.iterdir():
-        if not path.is_dir() or path.name.startswith("."):
-            continue
-        if include_empty_dirs or _dir_has_source_files(path):
-            slugs.add(path.name)
+    if season_dir.exists():
+        for path in season_dir.iterdir():
+            if not path.is_dir() or path.name.startswith("."):
+                continue
+            if include_empty_dirs or _dir_has_source_files(path):
+                slugs.add(path.name)
     return sorted(slugs)
+
+
+def find_slugs_from_storage(source_file_rows: dict[tuple[str, str], dict]) -> list[str]:
+    return sorted({slug for slug, _ in source_file_rows.keys() if slug})
 
 
 def print_table(rows: list[MatchInventory]) -> None:
     cols = [
         "slug", "source_status", "sportscode_xml", "player_events_xml",
         "effective_time_xml", "wyscout_pdf_report", "spiideo_xml",
+        "sportscode_source", "player_events_source", "effective_time_source", "wyscout_pdf_source",
         "players_csv", "minutes_csv", "attributed_csv", "coug_scores_csv", "notes",
     ]
     widths = {col: max(len(col), *(len(str(getattr(row, col))) for row in rows)) for col in cols}
@@ -217,9 +297,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    source_file_rows = fetch_source_file_rows(args.season)
+    slugs = set(find_slugs(args.season, args.slug, include_empty_dirs=args.include_empty_dirs))
+    if not args.slug:
+        slugs.update(find_slugs_from_storage(source_file_rows))
+    slugs = sorted(slugs)
+
     rows = [
-        inventory_match(args.season, slug, require_spiideo=args.require_spiideo)
-        for slug in find_slugs(args.season, args.slug, include_empty_dirs=args.include_empty_dirs)
+        inventory_match(args.season, slug, require_spiideo=args.require_spiideo, source_file_rows=source_file_rows)
+        for slug in slugs
     ]
     if not rows:
         raise SystemExit(f"No matches found for season {args.season}")

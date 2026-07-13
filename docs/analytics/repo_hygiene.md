@@ -67,3 +67,20 @@ with ordinary file paths.
 
 If a file can be reproduced by a pipeline command, keep it ignored unless it is
 a deliberately curated Markdown artifact for coaches or handoff.
+
+## Source File Registry
+
+Use Supabase Storage bucket `source-files` for raw files. Use Postgres table
+`source_file` for metadata about each concrete object.
+
+```text
+Bucket: source-files
+Table:  public.source_file
+Path:   cofc/2025/2025-09-27_william_mary/wyscout/2025-09-27_william_mary_cfc_sportscode.xml
+```
+
+Run this schema script in Supabase SQL editor when ready:
+
+```text
+schema/2026_07_source_file.sql
+```
