@@ -46,6 +46,8 @@ outputs/
 !db_ready_schema.json.bak
 !configs/
 !configs/**/*.json
+!pipeline/config/
+!pipeline/config/*.csv
 !pipeline/outputs/
 !pipeline/outputs/reports/
 !pipeline/outputs/reports/scouting/

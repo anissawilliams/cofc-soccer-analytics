@@ -2,6 +2,24 @@
 
 Date: 2026-07-09
 
+## 2026-07-13 Update
+
+Coach survey answers resolved the highest-risk PEAK assumptions:
+
+- Event-derived scoring is the official COUG Table source of truth.
+- Wyscout PDFs are validation/comparison.
+- Individual Wyscout events are sufficient for PEAK.
+- No PEAK sequence bonus.
+- No coach/video confirmation gate for PEAK.
+- Advance = 0.5 points per 10 successful Advance actions.
+- Punish and Advance should not double-count.
+- Punish takes priority.
+- The 3-5 pass threshold divides Punish from Advance.
+
+The remaining PEAK work is implementation and normalization: map raw Wyscout
+labels to Advance/Punish consistently, encode the 3-5 pass threshold, and keep
+the explainer/reconciliation reports clear while those changes are verified.
+
 ## Goal
 
 Make the College of Charleston men's soccer COUGS Table pipeline more reliable, auditable, and easier to hand off. The main concern was that coach-facing PEAK/ASET values did not line up with the pipeline, and prior iterations had mixed PDF-derived scores, Wyscout event scores, and incomplete `athlete_event` loading.
@@ -95,7 +113,7 @@ It also now supports:
 
 - `athlete_alias` resolution.
 - Raw player name vs resolved player name in reconciliation outputs.
-- Candidate/review-only PEAK columns.
+- Table-normalized PEAK columns for reconciliation/review.
 
 ## Alias Work
 
@@ -204,7 +222,7 @@ This is now the main technical issue to investigate.
 
 ## Candidate PEAK
 
-Added review-only candidate PEAK fields to the reconciliation layer. This does not change `coug_score`, Supabase official values, or the frontend.
+Added candidate/table-normalized PEAK fields to the reconciliation layer. This does not change `coug_score`, Supabase official values, or the frontend.
 
 New reconciliation columns include:
 
@@ -275,7 +293,7 @@ player.set_piece_score
 player.total_score
 ```
 
-We did not change the frontend. The candidate PEAK should stay in reports/API review mode until scoring rules are confirmed.
+We did not change the frontend. The table-normalized PEAK should stay in reports/API review mode until source completeness and implementation details are verified.
 
 ## Commands To Rerun Reconciliation
 
@@ -323,4 +341,4 @@ The pipeline is no longer a vague reliability problem. The current concrete issu
 PEAK-relevant labels exist in parsed player-event files, but filtering/mapping prevents some from becoming score evidence.
 ```
 
-The safest path is to continue using reconciliation reports and `candidate_peak_score` until coaches confirm the exact PEAK rules.
+The safest path is to continue using reconciliation reports and `candidate_peak_score` while the confirmed PEAK rules are fully implemented and source completeness is verified.

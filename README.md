@@ -72,6 +72,7 @@ COUG score reconciliation:
 - [Current state inventory](docs/analytics/current_state_inventory.md)
 - [2025 source inventory](docs/analytics/source_inventory_2025.md)
 - [Coach questions](docs/analytics/coach_questions.md)
+- [PEAK normalization](docs/analytics/peak_normalization.md)
 - [Scouting README](docs/analytics/scouting/README.md)
 - [Opposition report product spec](docs/analytics/scouting/opposition_report_product_spec.md)
 - [Score reconciliation SOP](docs/analytics/sop/score_reconciliation_sop.md)

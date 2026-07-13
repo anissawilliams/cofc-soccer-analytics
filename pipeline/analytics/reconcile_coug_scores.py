@@ -37,15 +37,7 @@ if str(INGESTION_DIR) not in sys.path:
 from source_paths import get_source_paths
 
 PAGE_SIZE = 1000
-CANDIDATE_PEAK_MODEL = "candidate_wyscout_peak_v1"
-CANDIDATE_PEAK_RULES = {
-    "goal": ("Goal (scorer)", "K", 3.0, "Wyscout Goal label"),
-    "goal (scorer)": ("Goal (scorer)", "K", 3.0, "Wyscout Goal label"),
-    "assists": ("Assist", "K", 2.0, "Wyscout Assists label"),
-    "assist": ("Assist", "K", 2.0, "Wyscout Assists label"),
-    "opportunity": ("Punish Action after Regain", "P", 0.2, "Wyscout Opportunity proxy; needs sequence validation"),
-}
-ADVANCE_CANDIDATE_LABELS = {"key passes", "smart pass", "smart passes"}
+CANDIDATE_PEAK_MODEL = "wyscout_peak_normalization_v1"
 ADVANCE_ACTIONS_PER_CREDIT = 10
 ADVANCE_CREDIT_WEIGHT = 0.5
 
@@ -166,14 +158,41 @@ def parse_context_labels(raw_context: object) -> set[str]:
     return labels
 
 
-def candidate_peak_event(row: pd.Series) -> pd.Series:
+def load_peak_normalization() -> pd.DataFrame:
+    path = Path(__file__).resolve().parents[1] / "config" / "wyscout_peak_normalization.csv"
+    if not path.exists():
+        return pd.DataFrame(columns=[
+            "raw_label_key", "normalized_metric", "peak_phase", "score_policy",
+            "event_weight", "threshold_count", "threshold_score", "requires_success",
+            "success_rule", "double_count_priority", "pass_threshold_rule",
+            "official_status", "implementation_status", "notes",
+        ])
+    df = pd.read_csv(path)
+    df["raw_label_key"] = df["raw_label_key"].fillna(df["raw_label"]).map(normalize_metric_name)
+    df["normalized_metric"] = df["normalized_metric"].fillna("")
+    df["peak_phase"] = df["peak_phase"].fillna("")
+    df["score_policy"] = df["score_policy"].fillna("exclude")
+    df["event_weight"] = pd.to_numeric(df["event_weight"], errors="coerce").fillna(0.0)
+    df["threshold_count"] = pd.to_numeric(df["threshold_count"], errors="coerce")
+    df["threshold_score"] = pd.to_numeric(df["threshold_score"], errors="coerce")
+    df["requires_success"] = df["requires_success"].fillna(False).astype(str).str.lower().isin({"true", "1", "yes"})
+    for col in ["success_rule", "pass_threshold_rule", "official_status", "implementation_status", "notes"]:
+        df[col] = df[col].fillna("")
+    df["double_count_priority"] = pd.to_numeric(df["double_count_priority"], errors="coerce").fillna(99).astype(int)
+    return df
+
+
+def candidate_peak_event(row: pd.Series, peak_rules_by_key: dict[str, pd.Series]) -> pd.Series:
     labels = parse_context_labels(row.get("raw_value_context"))
     raw_key = normalize_metric_name(row.get("raw_metric_name"))
 
-    rule_key = raw_key if raw_key in CANDIDATE_PEAK_RULES else ""
-    if not rule_key and raw_key == "shots" and "opportunity" in labels:
-        rule_key = "opportunity"
-    candidate_advance_action = raw_key in ADVANCE_CANDIDATE_LABELS
+    rule_key = raw_key if raw_key in peak_rules_by_key else ""
+    if raw_key == "shots" and "opportunity" in labels and "shots" in peak_rules_by_key:
+        # Raw shot rows are too broad. Only treat them as PEAK when the parsed
+        # context also says this shot was an Opportunity.
+        rule_key = "shots"
+    elif raw_key == "shots":
+        rule_key = ""
 
     if not rule_key:
         return pd.Series({
@@ -181,26 +200,69 @@ def candidate_peak_event(row: pd.Series) -> pd.Series:
             "candidate_peak_phase": "",
             "candidate_peak_weight": 0.0,
             "candidate_peak_score": 0.0,
-            "candidate_advance_action": int(candidate_advance_action),
+            "candidate_advance_action": 0,
+            "candidate_advance_threshold_count": ADVANCE_ACTIONS_PER_CREDIT,
+            "candidate_advance_threshold_score": ADVANCE_CREDIT_WEIGHT,
             "candidate_peak_model": CANDIDATE_PEAK_MODEL,
-            "candidate_peak_note": (
-                "Advance candidate action; score applied as 0.5 per 10 actions at player-match level"
-                if candidate_advance_action else ""
-            ),
+            "candidate_peak_note": "",
+            "peak_score_policy": "",
+            "peak_requires_success": False,
+            "peak_success_rule": "",
+            "peak_double_count_priority": 99,
+            "peak_pass_threshold_rule": "",
+            "peak_official_status": "",
+            "peak_implementation_status": "",
         })
 
-    metric, phase, weight, note = CANDIDATE_PEAK_RULES[rule_key]
-    raw_value = pd.to_numeric(row.get("raw_value"), errors="coerce")
-    if pd.isna(raw_value):
-        raw_value = 1.0
+    rule = peak_rules_by_key[rule_key]
+    score_policy = str(rule.get("score_policy", "exclude"))
+    candidate_advance_action = int(score_policy == "threshold_count")
+    threshold_count = pd.to_numeric(rule.get("threshold_count"), errors="coerce")
+    threshold_score = pd.to_numeric(rule.get("threshold_score"), errors="coerce")
+    if pd.isna(threshold_count):
+        threshold_count = ADVANCE_ACTIONS_PER_CREDIT
+    if pd.isna(threshold_score):
+        threshold_score = ADVANCE_CREDIT_WEIGHT
+
+    if score_policy == "exclude":
+        event_score = 0.0
+    elif score_policy == "threshold_count":
+        event_score = 0.0
+    elif score_policy in {"per_event", "contextual_event"}:
+        raw_value = pd.to_numeric(row.get("raw_value"), errors="coerce")
+        if pd.isna(raw_value):
+            raw_value = 1.0
+        event_score = float(raw_value) * float(rule.get("event_weight", 0.0))
+    else:
+        event_score = 0.0
+
+    metric = str(rule.get("normalized_metric", ""))
+    phase = str(rule.get("peak_phase", ""))
+    weight = float(rule.get("event_weight", 0.0)) if score_policy != "threshold_count" else 0.0
+    note = str(rule.get("notes", ""))
+    if score_policy == "threshold_count":
+        note = (
+            f"Advance threshold action; score applied as {threshold_score:g} per "
+            f"{int(threshold_count)} actions at player-match level"
+        )
+
     return pd.Series({
         "candidate_peak_metric": metric,
         "candidate_peak_phase": phase,
         "candidate_peak_weight": weight,
-        "candidate_peak_score": float(raw_value) * weight,
-        "candidate_advance_action": int(candidate_advance_action),
+        "candidate_peak_score": event_score,
+        "candidate_advance_action": candidate_advance_action,
+        "candidate_advance_threshold_count": float(threshold_count),
+        "candidate_advance_threshold_score": float(threshold_score),
         "candidate_peak_model": CANDIDATE_PEAK_MODEL,
         "candidate_peak_note": note,
+        "peak_score_policy": score_policy,
+        "peak_requires_success": bool(rule.get("requires_success", False)),
+        "peak_success_rule": str(rule.get("success_rule", "")),
+        "peak_double_count_priority": int(rule.get("double_count_priority", 99)),
+        "peak_pass_threshold_rule": str(rule.get("pass_threshold_rule", "")),
+        "peak_official_status": str(rule.get("official_status", "")),
+        "peak_implementation_status": str(rule.get("implementation_status", "")),
     })
 
 
@@ -359,6 +421,12 @@ def build_event_trace(tables: dict[str, pd.DataFrame], version: str) -> pd.DataF
     weights = latest_weights(tables["metric_weight"], version)
     sources = tables.get("data_source", pd.DataFrame())
     metric_map = load_wyscout_metric_map()
+    peak_normalization = load_peak_normalization()
+    peak_rules_by_key = {
+        str(row["raw_label_key"]): row
+        for _, row in peak_normalization.iterrows()
+        if str(row.get("raw_label_key", "")).strip()
+    }
 
     metric_lookup = metrics[["id", "category_id", "name", "peak_phase", "aset_letter"]].copy()
     metric_lookup["metric_key"] = metric_lookup["name"].map(normalize_metric_name)
@@ -430,7 +498,7 @@ def build_event_trace(tables: dict[str, pd.DataFrame], version: str) -> pd.DataF
     df["weight_missing"] = df["weight"].isna()
     df["weight"] = pd.to_numeric(df["weight"], errors="coerce").fillna(0.0)
     df["event_score"] = df["raw_value"] * df["weight"]
-    candidate_peak = df.apply(candidate_peak_event, axis=1)
+    candidate_peak = df.apply(lambda row: candidate_peak_event(row, peak_rules_by_key), axis=1)
     df = pd.concat([df, candidate_peak], axis=1)
     df["calculation_note"] = ""
     multiplier_mask = df["is_multiplier"].eq(True)
@@ -453,7 +521,11 @@ def build_event_trace(tables: dict[str, pd.DataFrame], version: str) -> pd.DataF
         "raw_category_code", "category_code", "score_bucket", "mapping_status", "mapping_notes",
         "raw_value", "weight", "weight_missing", "event_score", "is_multiplier", "event_time",
         "candidate_peak_metric", "candidate_peak_phase", "candidate_peak_weight",
-        "candidate_peak_score", "candidate_advance_action", "candidate_peak_model", "candidate_peak_note",
+        "candidate_peak_score", "candidate_advance_action", "candidate_advance_threshold_count",
+        "candidate_advance_threshold_score", "candidate_peak_model", "candidate_peak_note",
+        "peak_score_policy", "peak_requires_success", "peak_success_rule",
+        "peak_double_count_priority", "peak_pass_threshold_rule", "peak_official_status",
+        "peak_implementation_status",
         "collection_method", "manually_tagged", "coach_confirmed", "source_name", "platform",
         "raw_value_context", "calculation_note",
     ]
@@ -483,22 +555,37 @@ def summarize_trace(trace: pd.DataFrame) -> pd.DataFrame:
             .agg(
                 candidate_base_peak_score=("candidate_peak_score", "sum"),
                 candidate_advance_actions=("candidate_advance_action", "sum"),
+                candidate_advance_threshold_count=("candidate_advance_threshold_count", "max"),
+                candidate_advance_threshold_score=("candidate_advance_threshold_score", "max"),
             )
             .reset_index()
         )
+        candidate_peak["candidate_advance_threshold_count"] = (
+            pd.to_numeric(candidate_peak["candidate_advance_threshold_count"], errors="coerce")
+            .fillna(ADVANCE_ACTIONS_PER_CREDIT)
+        )
+        candidate_peak["candidate_advance_threshold_score"] = (
+            pd.to_numeric(candidate_peak["candidate_advance_threshold_score"], errors="coerce")
+            .fillna(ADVANCE_CREDIT_WEIGHT)
+        )
         candidate_peak["candidate_advance_score"] = (
-            candidate_peak["candidate_advance_actions"] // ADVANCE_ACTIONS_PER_CREDIT
-        ) * ADVANCE_CREDIT_WEIGHT
+            candidate_peak["candidate_advance_actions"] // candidate_peak["candidate_advance_threshold_count"]
+        ) * candidate_peak["candidate_advance_threshold_score"]
         candidate_peak["candidate_peak_score"] = (
             candidate_peak["candidate_base_peak_score"] + candidate_peak["candidate_advance_score"]
         )
     else:
         candidate_peak = pd.DataFrame(columns=[
             "session_id", "player_key", "candidate_base_peak_score",
-            "candidate_advance_actions", "candidate_advance_score", "candidate_peak_score",
+            "candidate_advance_actions", "candidate_advance_threshold_count",
+            "candidate_advance_threshold_score", "candidate_advance_score", "candidate_peak_score",
         ])
     pivot = pivot.merge(candidate_peak, on=["session_id", "player_key"], how="left")
-    for col in ["candidate_base_peak_score", "candidate_advance_actions", "candidate_advance_score", "candidate_peak_score"]:
+    for col in [
+        "candidate_base_peak_score", "candidate_advance_actions",
+        "candidate_advance_threshold_count", "candidate_advance_threshold_score",
+        "candidate_advance_score", "candidate_peak_score",
+    ]:
         pivot[col] = pd.to_numeric(pivot[col], errors="coerce").fillna(0.0)
     score_cols = ["aset", "peak", "set_piece", "positional", "load", "other"]
     pivot["pipeline_total"] = pivot[score_cols].sum(axis=1)

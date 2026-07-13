@@ -8,7 +8,19 @@ The Cougs Table started from Wyscout PDF match/player reports because that was t
 
 ## Current Rule
 
-Treat `athlete_event` as the evidence layer. Treat old PDF/Cougs CSV scores as comparison baselines, not automatic truth.
+Treat `athlete_event` as the official scoring evidence layer. Treat Wyscout
+PDF reports as validation/comparison. Treat old PDF/Cougs CSV scores as
+comparison baselines, not automatic truth.
+
+Coach-confirmed PEAK rules as of 2026-07-13:
+
+- Individual Wyscout events are sufficient.
+- No sequence bonus.
+- No coach/video confirmation gate.
+- Advance = `0.5` points per `10` successful Advance actions.
+- Punish and Advance should not double-count the same action.
+- Punish takes priority.
+- The 3-5 pass threshold divides Punish from Advance.
 
 ## Workflow
 
@@ -47,7 +59,19 @@ Raw Wyscout labels are mapped to coach-facing COUG metrics in:
 pipeline/config/wyscout_coug_metric_map.csv
 ```
 
-This file is intentionally reviewable. Rows marked `needs_coach_review` should be discussed before treating the score as final. For example, Wyscout `Pressing duel` can be used as a review bridge to `Successful Counter Press`, but it is not identical to a coach-confirmed counter press under five seconds.
+PEAK-specific normalization lives in:
+
+```text
+pipeline/config/wyscout_peak_normalization.csv
+```
+
+This file is intentionally reviewable. For PEAK, the scoring rule is now
+confirmed, but the Wyscout label normalization table still needs to be tightened
+so Advance, Punish, and the 3-5 pass threshold are encoded consistently. For
+ASET and set pieces, rows marked `needs_coach_review` should still be discussed
+before treating the score as final. For example, Wyscout `Pressing duel` can be
+used as a review bridge to `Successful Counter Press`, but it is not identical
+to a coach-defined counter press under five seconds.
 
 ## Granular Coach View
 

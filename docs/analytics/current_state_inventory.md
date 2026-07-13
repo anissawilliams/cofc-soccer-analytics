@@ -165,8 +165,14 @@ What this powers:
 
 Current interpretation:
 
-- ASET/PEAK differences are mostly source/weighting/mapping questions, not just
-  code bugs.
+- Event-derived scoring is the official source of truth.
+- Wyscout PDFs are validation/comparison.
+- PEAK rules are mostly resolved; PEAK normalization is now captured in
+  `pipeline/config/wyscout_peak_normalization.csv`.
+- Remaining PEAK work is implementation of that normalization table and the
+  3-5 pass threshold in scoring/reconciliation logic.
+- ASET/set-piece differences are still mostly source/mapping/filter questions,
+  not just code bugs.
 - The current reconciliation tool is the right place to show where values are
   being created.
 

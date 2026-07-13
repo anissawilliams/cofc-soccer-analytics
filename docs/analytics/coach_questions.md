@@ -1,6 +1,6 @@
 # Coach Questions To Unblock The 2026 Analytics Workflow
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 This list is organized by what each question unlocks. The goal is to avoid
 getting blocked mid-season because a scoring rule, report expectation, or data
@@ -8,14 +8,12 @@ handoff assumption was unclear.
 
 ## Highest Priority
 
-### 1. What should be the official source of truth for COUG Table scores?
+### 1. What should be the official source of truth for COUG Table scores? — Answered
 
-Options may include:
+Decision:
 
-- Database-derived `athlete_event` scoring
-- Wyscout player reports
-- Coach-reviewed spreadsheet
-- A hybrid where event-derived scores are official and PDFs are validation
+- Event-derived scoring is primary.
+- Wyscout PDFs are validation/comparison, not the official score source.
 
 Why this matters:
 
@@ -23,16 +21,14 @@ Why this matters:
 - Determines what counts as a discrepancy
 - Prevents us from chasing legacy outputs that were never meant to be final
 
-### 2. Should PEAK be scored from event actions, PDF report values, or coach-reviewed tags?
+### 2. Should PEAK be scored from event actions, PDF report values, or coach-reviewed tags? — Answered
 
-Specific PEAK items to confirm:
+Decision:
 
-- Goals
-- Assists
-- Punish actions
-- Opportunity / shot quality proxies
-- Advance actions
-- Set-piece attacking contributions
+- Individual Wyscout events are sufficient across PEAK.
+- No sequence bonus.
+- No coach/video confirmation gate required for PEAK scoring.
+- Wyscout label mapping still needs a normalization table.
 
 Why this matters:
 
@@ -40,34 +36,30 @@ Why this matters:
 - We need to know whether Wyscout-derived events are sufficient or whether
   coach/video validation is required
 
-### 3. What is the final rule for Advance?
+### 3. What is the final rule for Advance? — Answered
 
-Current working interpretation:
+Decision:
 
 - Advance = `0.5` points per `10` successful Advance actions
 
-Questions:
+Still needed:
 
-- Is this per player per match?
-- Do only successful actions count?
 - Which Wyscout labels count as Advance?
-- Should Advance actions that also become Punish actions be excluded?
+- Build/confirm the normalization table.
 
-### 4. How should Punish and Advance interact?
+### 4. How should Punish and Advance interact? — Answered
 
-Current working interpretation:
+Decision:
 
 - Do not double-count the same action as both Punish and Advance
 - Punish takes priority
+- The 3-5 pass threshold is the dividing line between Punish and Advance.
 
-Questions:
+Still needed:
 
-- Is that correct?
-- Are there exceptions?
-- Should a sequence receive credit for both if different players/actions are
-  involved?
+- Encode the threshold rule in the PEAK mapping/scoring logic.
 
-### 5. What should be player-facing versus coach-only?
+### 5. What should be player-facing versus coach-only? — Open
 
 Questions:
 

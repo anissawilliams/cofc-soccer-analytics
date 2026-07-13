@@ -78,8 +78,8 @@ The safer statement is:
 - Parsed player-event CSV outputs exist for the 2025 season.
 - Raw `player_events.xml` and `team_events.xml` are currently present locally
   only for UNCW.
-- PEAK can continue as candidate/review-only until event source completeness and
-  coach mapping rules are confirmed.
+- PEAK rules are coach-confirmed, but PEAK outputs should stay clearly labeled
+  while event source completeness and normalization implementation are verified.
 
 ## Undergrad / Data Collection Ask
 
