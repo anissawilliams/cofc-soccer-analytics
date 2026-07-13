@@ -11,6 +11,7 @@ Examples:
     python pipeline/ingestion/inventory_sources.py --season 2025
     python pipeline/ingestion/inventory_sources.py --season 2025 --slug 2025-11-02_uncw
     python pipeline/ingestion/inventory_sources.py --season 2025 --csv
+    python pipeline/ingestion/inventory_sources.py --season 2025 --require-spiideo
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from __future__ import annotations
 import argparse
 import csv
 import re
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -76,7 +78,11 @@ def _exists_any(match_dir: Path, names: list[str], patterns: list[str] | None = 
     return False
 
 
-def inventory_match(season: str, slug: str) -> MatchInventory:
+def inventory_match(
+    season: str,
+    slug: str,
+    require_spiideo: bool = False,
+) -> MatchInventory:
     paths = get_source_paths()
     match_dir = paths.matches_dir / str(season) / slug
     output_dir = paths.parsed_outputs_dir / str(season) / slug
@@ -109,8 +115,8 @@ def inventory_match(season: str, slug: str) -> MatchInventory:
         notes.append("missing effective-time XML")
     if not wyscout_pdf:
         notes.append("missing Wyscout PDF report")
-    if not spiideo:
-        notes.append("Spiideo absent/future source")
+    if require_spiideo and not spiideo:
+        notes.append("missing Spiideo XML")
     if legacy_output_dir.exists() and not output_dir.exists():
         notes.append("only legacy pipeline/data/outputs exists")
 
@@ -142,14 +148,42 @@ def inventory_match(season: str, slug: str) -> MatchInventory:
     )
 
 
-def find_slugs(season: str, slug: str | None) -> list[str]:
+def _manifest_slugs(manifest_path: Path, season: str) -> list[str]:
+    if not manifest_path.exists():
+        return []
+    with manifest_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        return sorted(
+            row["slug"]
+            for row in reader
+            if str(row.get("season", "")).strip() == str(season)
+            and row.get("slug")
+        )
+
+
+def _dir_has_source_files(path: Path) -> bool:
+    return path.exists() and any(child.is_file() for child in path.rglob("*"))
+
+
+def find_slugs(
+    season: str,
+    slug: str | None,
+    include_empty_dirs: bool = False,
+) -> list[str]:
     paths = get_source_paths()
     if slug:
         return [slug]
     season_dir = paths.matches_dir / str(season)
     if not season_dir.exists():
         raise FileNotFoundError(f"Match season directory not found: {season_dir}")
-    return sorted(p.name for p in season_dir.iterdir() if p.is_dir() and not p.name.startswith("."))
+
+    slugs = set(_manifest_slugs(paths.manifest_path, season))
+    for path in season_dir.iterdir():
+        if not path.is_dir() or path.name.startswith("."):
+            continue
+        if include_empty_dirs or _dir_has_source_files(path):
+            slugs.add(path.name)
+    return sorted(slugs)
 
 
 def print_table(rows: list[MatchInventory]) -> None:
@@ -171,11 +205,27 @@ def main() -> None:
     parser.add_argument("--season", default="2025", help="Season folder, e.g. 2025")
     parser.add_argument("--slug", default=None, help="Single match slug")
     parser.add_argument("--csv", action="store_true", help="Emit CSV instead of a terminal table")
+    parser.add_argument(
+        "--require-spiideo",
+        action="store_true",
+        help="Treat missing Spiideo files as a current-source warning instead of future/optional.",
+    )
+    parser.add_argument(
+        "--include-empty-dirs",
+        action="store_true",
+        help="Include empty match directories that are not listed in the manifest.",
+    )
     args = parser.parse_args()
 
-    rows = [inventory_match(args.season, slug) for slug in find_slugs(args.season, args.slug)]
+    rows = [
+        inventory_match(args.season, slug, require_spiideo=args.require_spiideo)
+        for slug in find_slugs(args.season, args.slug, include_empty_dirs=args.include_empty_dirs)
+    ]
+    if not rows:
+        raise SystemExit(f"No matches found for season {args.season}")
+
     if args.csv:
-        writer = csv.DictWriter(__import__("sys").stdout, fieldnames=list(asdict(rows[0]).keys()))
+        writer = csv.DictWriter(sys.stdout, fieldnames=list(asdict(rows[0]).keys()))
         writer.writeheader()
         for row in rows:
             writer.writerow(asdict(row))

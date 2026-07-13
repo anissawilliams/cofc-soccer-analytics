@@ -1,6 +1,6 @@
 # Current State Inventory
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 This document explains what the repo currently has, what each layer can power,
 and what is still missing for fully automated COUG Table, scouting, and modeling
@@ -47,7 +47,8 @@ What this powers:
 What is missing:
 
 - Full `player_events.xml` and `team_events.xml` for the rest of 2025
-- Spiideo source files for 2025, if coaches want video-tag validation
+- Spiideo source files for 2025, if coaches want video-tag validation. This is
+  a future source and is not treated as a current Wyscout-ingestion blocker.
 - Catapult/load source files, if physical load becomes part of automated score
 
 ### Wyscout Player PDF Reports

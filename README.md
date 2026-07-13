@@ -1,126 +1,147 @@
-cd# CofC Soccer Analytics — Application Layer
+# CofC Soccer Analytics
 
-Analytics dashboards, coaching tools, and data APIs for the College of Charleston Men's Soccer program.
+College of Charleston men's soccer analytics repo for COUG Table scoring,
+Wyscout ingestion, scouting reports, simulation/modeling, and coaching
+dashboards.
 
-Built on top of the [CofC Soccer Pipeline](https://github.com/your-org/cofc-soccer-pipeline) which handles data ingestion and Supabase loading.
+## What This Repo Does
 
----
+- Ingests and inventories Wyscout source files
+- Reconciles COUG Table scoring against database, legacy CSVs, and PDF reports
+- Builds 2026 scouting schedule QA and opponent report shells
+- Trains a baseline 2025 match outcome model
+- Provides dashboard/application code for coach-facing views
 
-## What's in here
+## Fresh Computer Setup
 
-```
-├── api/
-│   ├── main.py          FastAPI backend — serves React frontend
-│   └── db.py            Unified Supabase query layer (shared by API + Streamlit)
-├── streamlit/
-│   └── streamlit_app.py Coaching staff dashboard (password protected)
-├── frontend/            React/TypeScript public-facing app
-│   ├── src/
-│   │   ├── App.jsx           Team analytics + COUG Table tabs
-│   │   └── coug_dashboard.jsx COUG Table leaderboard
-│   └── package.json
-├── .env.example         Required environment variables (copy to .env)
-└── requirements.txt     Python dependencies
-```
-
----
-
-## Apps
-
-### Public — React Dashboard
-The player-facing COUG Table and team analytics dashboard.
-- COUG Table leaderboard (public, no login)
-- Team analytics — attacking threat, defensive output, roster development
-- Connects to FastAPI backend → Supabase
-
-### Private — Streamlit Coaching Dashboard
-Staff-only tools. Password protected.
-- **Match Scouting** — opponent analysis, Monte Carlo win probability, full pre-match report
-- **Tactical Scenario Simulator** — live sliders for possession, xG, pass accuracy → win probability updates in real time
-- **Player Development** — COUG score trends, development targets, individual player breakdowns
-- **Ask the Data** — AI query interface (coming soon, requires Anthropic API key)
-
----
-
-## Setup
-
-### 1. Clone and install
 ```bash
-git clone https://github.com/your-org/cofc-soccer-analytics
-cd cofc-soccer-analytics
+git clone <repo-url>
+cd cofc_soccer_analytics_2026
+
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+
+cp env.example .env
 ```
 
-### 2. Environment variables
+Then fill in `.env` if you need Supabase-backed commands:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY`
+- `STREAMLIT_PASSWORD` if running Streamlit
+
+Most local file paths are resolved from the repo root. Optional path overrides
+are documented in `env.example`.
+
+## Key Commands
+
+Source inventory:
+
 ```bash
-cp .env.example .env
-# Fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, STREAMLIT_PASSWORD
+.venv/bin/python pipeline/ingestion/inventory_sources.py --season 2025
+.venv/bin/python pipeline/ingestion/inventory_sources.py --season 2025 --csv
 ```
 
-### 3. Run the FastAPI backend
+2025 match model:
+
 ```bash
-cd api
-uvicorn main:app --reload --port 8000
+.venv/bin/python pipeline/scouting/build_match_model.py --org cofc --season 2025
 ```
 
-### 4. Run the Streamlit dashboard
+2026 schedule QA:
+
 ```bash
-cd streamlit
-streamlit run streamlit_app.py
+.venv/bin/python pipeline/scouting/build_schedule_report.py --org cofc --season 2026
 ```
 
-### 5. Run the React frontend
+2026 opponent report shells:
+
 ```bash
-cd frontend
-npm install
-npm run dev
+.venv/bin/python pipeline/scouting/build_opponent_shells.py --org cofc --season 2026
 ```
 
----
+COUG score reconciliation:
 
-## Data flow
-
-```
-Wyscout XML / Spiideo XML
-        ↓
-  [cofc-soccer-pipeline repo]
-  parse → attribute → load
-        ↓
-    Supabase (PostgreSQL)
-        ↓
-      db.py  ←─────────────────────────────┐
-      ↙           ↘                         │
-FastAPI          Streamlit            (shared layer)
-   ↓
-React App
+```bash
+.venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season 2025
 ```
 
----
+## Important Docs
 
-## Architecture decisions
+- [Current state inventory](docs/analytics/current_state_inventory.md)
+- [2025 source inventory](docs/analytics/source_inventory_2025.md)
+- [Coach questions](docs/analytics/coach_questions.md)
+- [Scouting README](docs/analytics/scouting/README.md)
+- [Opposition report product spec](docs/analytics/scouting/opposition_report_product_spec.md)
+- [Score reconciliation SOP](docs/analytics/sop/score_reconciliation_sop.md)
 
-**`db.py` is the single source of truth** for all Supabase queries. Both the FastAPI backend and Streamlit import from it. Add new queries here, not inline in the apps.
+## Data Notes
 
-**Pending states everywhere** — charts and tables gracefully show "pending data" when Supabase doesn't have data yet (pre-XML pipeline). Nothing breaks, nothing is hardcoded.
+This repo currently tracks enough 2025 source/sample data to support local
+development and reproducible demos. Larger or future raw exports should be
+handled intentionally through the source-path conventions and `.gitignore`.
 
-**Trust tiers** — data source priority is handled in the pipeline repo. This repo just reads from Supabase and trusts what's there.
+Current source truth is summarized in:
 
----
+```text
+docs/analytics/source_inventory_2025.md
+```
 
-## Roadmap
+As of 2026-07-13:
 
-- [ ] AI query interface (Tab 3) — requires Anthropic API key
-- [ ] Pitch visualization — formation overlays, pressing triggers (requires Catapult tracking data)
-- [ ] Jersey number filtering — upstream fix in pipeline repo
-- [ ] Season-over-season comparisons
-- [ ] Export to PDF for match day briefing packets
+- 16 real 2025 matches are included in the default inventory.
+- All 16 have Wyscout `sportscode.xml` and `effective_time.xml`.
+- 15 of 16 have Wyscout PDF player reports in the expected folder.
+- 16 of 16 have parsed player CSV outputs.
+- Only UNCW currently has raw `player_events.xml` and `team_events.xml` locally.
+- Spiideo is treated as a future source, not a current blocker.
 
----
+## Repo Layout
 
-## Contributing
+```text
+configs/                         Organization and season configs
+docs/analytics/                  SOPs, handoff docs, scouting specs
+pipeline/analytics/              COUG scoring, reconciliation, legacy analytics
+pipeline/core/                   Shared config/path helpers
+pipeline/data/                   Current tracked source/sample data
+pipeline/ingestion/              Source inventory, parsing, loading
+pipeline/scouting/               Schedule QA, match model, opponent shells
+pipeline/outputs/reports/        Selected markdown report artifacts
+frontend/                        React app
+backend/                         FastAPI/backend experiments
+streamlit/                       Streamlit app, if present locally
+schema/                          Database guardrails/migrations
+```
 
-Data pipeline changes → [cofc-soccer-pipeline repo](https://github.com/your-org/cofc-soccer-pipeline)
+## Development Hygiene
 
-Application/dashboard changes → this repo
+Before committing:
 
-Questions → Anissa Williams
+```bash
+git status --short
+.venv/bin/python -m py_compile pipeline/ingestion/inventory_sources.py
+.venv/bin/python -m py_compile pipeline/core/config_loader.py pipeline/scouting/features.py pipeline/scouting/modeling.py pipeline/scouting/simulation.py pipeline/scouting/build_match_model.py
+```
+
+Do not commit:
+
+- `.env`
+- downloaded secrets
+- accidental scratch files
+- huge ad hoc search outputs
+- new raw data unless it is intentionally part of the reproducible sample set
+
+## Current Strategic Direction
+
+COUG Table scoring remains a coach-defined rules framework, not ML. The ML lane
+belongs in match outcome modeling, simulation, scouting, and eventually
+recruiting similarity.
+
+The immediate build path is:
+
+1. Keep source inventory and pathing clean.
+2. Keep PEAK candidate/review-only until coach mapping rules are final.
+3. Generate and progressively populate 2026 scouting report shells.
+4. Add 2026 match results/files as they arrive.
+5. Expand modeling with additional historical data if it becomes available.
