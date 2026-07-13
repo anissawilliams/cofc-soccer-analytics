@@ -2,9 +2,10 @@
 """
 Build a triage report from generated COUG score reconciliation outputs.
 
-This script is intentionally downstream-only: it reads the CSVs produced by
-reconcile_coug_scores.py and does not query Supabase. Use it when reconciliation
-has already run and the question is, "Which deltas should we investigate first?"
+This script reads the CSVs produced by reconcile_coug_scores.py and adds
+match-level source coverage context when the inventory helper can resolve it.
+Use it when reconciliation has already run and the question is, "Which deltas
+should we investigate first?"
 
 Examples:
     python pipeline/analytics/build_reconciliation_triage.py --season 2025
@@ -15,6 +16,8 @@ from __future__ import annotations
 
 import argparse
 import math
+import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import pandas as pd
@@ -22,6 +25,11 @@ import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_ROOT = REPO_ROOT / "pipeline" / "outputs" / "reports" / "score_reconciliation"
+INGESTION_DIR = REPO_ROOT / "pipeline" / "ingestion"
+if str(INGESTION_DIR) not in sys.path:
+    sys.path.insert(0, str(INGESTION_DIR))
+
+from inventory_sources import fetch_source_file_rows, inventory_match  # noqa: E402
 
 
 def clean_text(value: object) -> str:
@@ -123,6 +131,53 @@ def summarize_trace(trace: pd.DataFrame) -> pd.DataFrame:
     })
 
 
+def source_is_missing(value: object) -> bool:
+    return clean_text(value).lower() == "missing"
+
+
+def has_any_source(value: object) -> bool:
+    return clean_text(value).lower() not in {"", "missing"}
+
+
+def source_coverage_status(inventory: dict[str, object] | None) -> str:
+    if not inventory:
+        return "unknown"
+    sportscode = clean_text(inventory.get("sportscode_source"))
+    player_events = clean_text(inventory.get("player_events_source"))
+    team_events = clean_text(inventory.get("team_events_source"))
+    pdf = clean_text(inventory.get("wyscout_pdf_source"))
+
+    if not has_any_source(sportscode):
+        return "missing_primary_sportscode"
+    if source_is_missing(player_events) or source_is_missing(team_events):
+        if has_any_source(pdf):
+            return "primary_plus_pdf_missing_supplemental_xml"
+        return "primary_only_missing_supplemental_xml"
+    return "primary_and_supplemental_xml"
+
+
+def source_review_reason(row: pd.Series) -> str:
+    candidate_peak = as_number(row.get("candidate_peak_score"))
+    legacy_peak = as_number(row.get("legacy_peak"))
+    pdf_peak = as_number(row.get("pdf_peak"))
+    trace_candidate = as_number(row.get("trace_candidate_peak_score"))
+    trace_advance = as_number(row.get("trace_advance_actions"))
+    coverage_status = clean_text(row.get("source_coverage_status"))
+
+    positive_baseline_peak = legacy_peak > 0 or pdf_peak > 0
+    no_normalized_peak_evidence = candidate_peak == 0 and trace_candidate == 0 and trace_advance == 0
+    missing_supplemental = "missing_supplemental_xml" in coverage_status
+
+    if positive_baseline_peak and no_normalized_peak_evidence and missing_supplemental:
+        return (
+            "Positive legacy/PDF PEAK baseline but no normalized event-derived PEAK; "
+            "player/team XML is missing for this match."
+        )
+    if positive_baseline_peak and no_normalized_peak_evidence:
+        return "Positive legacy/PDF PEAK baseline but no normalized event-derived PEAK evidence."
+    return ""
+
+
 def classify_row(row: pd.Series, threshold: float) -> str:
     player = clean_text(row.get("player"))
     legacy = clean_text(row.get("legacy_player_raw"))
@@ -144,6 +199,8 @@ def classify_row(row: pd.Series, threshold: float) -> str:
         return "no_legacy_peak_baseline"
     if abs(candidate_delta) < threshold:
         return "within_threshold"
+    if source_review_reason(row):
+        return "needs_source_review"
     if legacy_peak > 0 and candidate_peak == 0:
         if trace_candidate == 0 and trace_advance == 0:
             return "legacy_peak_without_normalized_peak_events"
@@ -155,7 +212,13 @@ def classify_row(row: pd.Series, threshold: float) -> str:
     return "needs_review"
 
 
-def build_triage(slug: str, reconciliation: pd.DataFrame, trace_summary: pd.DataFrame, threshold: float) -> pd.DataFrame:
+def build_triage(
+    slug: str,
+    reconciliation: pd.DataFrame,
+    trace_summary: pd.DataFrame,
+    threshold: float,
+    inventory: dict[str, object] | None = None,
+) -> pd.DataFrame:
     if reconciliation.empty:
         return pd.DataFrame()
     df = reconciliation.copy()
@@ -163,6 +226,14 @@ def build_triage(slug: str, reconciliation: pd.DataFrame, trace_summary: pd.Data
     if "player_key" not in df.columns:
         df["player_key"] = ""
     df = df.merge(trace_summary, on=["slug", "player_key"], how="left")
+
+    inventory = inventory or {}
+    for column in [
+        "sportscode_source", "player_events_source", "team_events_source",
+        "effective_time_source", "wyscout_pdf_source", "spiideo_source", "source_status",
+    ]:
+        df[column] = inventory.get(column, "")
+    df["source_coverage_status"] = source_coverage_status(inventory)
 
     for column in [
         "pipeline_peak", "candidate_peak_score", "legacy_peak", "pdf_peak",
@@ -172,6 +243,7 @@ def build_triage(slug: str, reconciliation: pd.DataFrame, trace_summary: pd.Data
         if column not in df.columns:
             df[column] = pd.NA
 
+    df["source_review_reason"] = df.apply(source_review_reason, axis=1)
     df["triage_status"] = df.apply(lambda row: classify_row(row, threshold), axis=1)
     df["triage_player"] = df.apply(
         lambda row: first_present(row, ["player", "legacy_player_raw", "pdf_player_raw", "player_key"]),
@@ -198,6 +270,9 @@ def build_triage(slug: str, reconciliation: pd.DataFrame, trace_summary: pd.Data
         "trace_candidate_peak_score", "trace_advance_actions", "trace_raw_labels",
         "trace_candidate_peak_labels", "trace_peak_statuses", "legacy_peak_breakdown",
         "legacy_source_file", "pdf_source_file",
+        "source_coverage_status", "source_review_reason", "sportscode_source",
+        "player_events_source", "team_events_source", "effective_time_source",
+        "wyscout_pdf_source", "spiideo_source", "source_status",
     ]
     available = [column for column in columns if column in df.columns]
     return df[available].sort_values(
@@ -263,7 +338,18 @@ def write_markdown(triage: pd.DataFrame, output_path: Path, threshold: float, to
             [
                 "slug", "triage_status", "triage_player", "candidate_peak_score",
                 "legacy_peak", "pdf_peak", "delta_candidate_peak_score_vs_legacy_peak",
-                "trace_candidate_peak_labels", "legacy_peak_breakdown",
+                "trace_candidate_peak_labels", "source_coverage_status", "legacy_peak_breakdown",
+            ],
+            max_rows=top,
+        ),
+        "",
+        "## Source Coverage Review",
+        "",
+        markdown_table(
+            triage[triage["triage_status"].eq("needs_source_review")],
+            [
+                "slug", "triage_player", "candidate_peak_score", "legacy_peak", "pdf_peak",
+                "player_events_source", "team_events_source", "source_review_reason",
             ],
             max_rows=top,
         ),
@@ -289,7 +375,8 @@ def write_markdown(triage: pd.DataFrame, output_path: Path, threshold: float, to
         "",
         "## How To Use This",
         "",
-        "- Start with `legacy_peak_without_normalized_peak_events` and `candidate_below_legacy` rows.",
+        "- Start with `needs_source_review`, `legacy_peak_without_normalized_peak_events`, and `candidate_below_legacy` rows.",
+        "- Treat `needs_source_review` as a coverage flag before treating it as a scoring-rule problem.",
         "- For each top row, inspect the matching `*_event_score_trace.csv` by `player_key` and `raw_metric_name`.",
         "- Treat legacy/PDF values as comparison baselines. The official path is event-derived scoring once source coverage and mapping are verified.",
         "",
@@ -311,6 +398,12 @@ def main() -> None:
     if not slugs:
         raise SystemExit(f"No per-match reconciliation files found in {report_dir}")
 
+    source_file_rows = fetch_source_file_rows(args.season)
+    inventories = {
+        slug: asdict(inventory_match(args.season, slug, source_file_rows=source_file_rows))
+        for slug in slugs
+    }
+
     triage_frames = []
     for slug in slugs:
         reconciliation_path = report_dir / f"{slug}_score_reconciliation.csv"
@@ -320,7 +413,7 @@ def main() -> None:
         if not trace.empty:
             trace["slug"] = slug
         trace_summary = summarize_trace(trace)
-        triage = build_triage(slug, reconciliation, trace_summary, args.threshold)
+        triage = build_triage(slug, reconciliation, trace_summary, args.threshold, inventories.get(slug))
         if not triage.empty:
             triage_frames.append(triage)
 

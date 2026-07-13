@@ -74,6 +74,7 @@ COUG score reconciliation:
 - [Coach questions](docs/analytics/coach_questions.md)
 - [PEAK normalization](docs/analytics/peak_normalization.md)
 - [Repo hygiene](docs/analytics/repo_hygiene.md)
+- [Next work queue](docs/analytics/next_work_queue.md)
 - [Scouting README](docs/analytics/scouting/README.md)
 - [Opposition report product spec](docs/analytics/scouting/opposition_report_product_spec.md)
 - [Score reconciliation SOP](docs/analytics/sop/score_reconciliation_sop.md)
