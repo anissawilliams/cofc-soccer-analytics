@@ -12,6 +12,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from source_paths import get_source_paths
 
 
@@ -32,6 +34,7 @@ class ResolvedSourceFile:
 
 
 def storage_enabled() -> bool:
+    load_dotenv()
     return bool(
         os.environ.get("SUPABASE_URL")
         and os.environ.get("SUPABASE_SERVICE_KEY")
@@ -58,6 +61,7 @@ def _cache_path(storage_path: str) -> Path:
 
 
 def _download_from_supabase(storage_path: str) -> Path:
+    load_dotenv()
     try:
         from supabase import create_client
     except ImportError as exc:
