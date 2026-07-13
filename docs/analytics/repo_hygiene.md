@@ -12,6 +12,7 @@ into the long-term storage system for vendor exports and generated reports.
 - Application and pipeline code
 - Config files under `configs/` and `pipeline/config/`
 - Small operating tables such as schedules and manifests
+- Small roster lookup files required by parsers
 - Documentation and SOPs
 - Selected Markdown report shells or human-readable summaries
 

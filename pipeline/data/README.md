@@ -7,6 +7,7 @@ small, intentional repo inputs only.
 
 - `schedules/*.csv`: season schedules and stable team identifiers
 - `manifests/*.csv`: match/source manifests used by inventory and ingestion
+- `../ingestion/roster_2025.csv`: small parser roster lookup
 
 ## Local Or External
 
