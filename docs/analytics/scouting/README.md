@@ -21,6 +21,12 @@ The 2026 schedule QA command is:
 .venv/bin/python pipeline/scouting/build_schedule_report.py --org cofc --season 2026
 ```
 
+The 2026 opponent shell command is:
+
+```bash
+.venv/bin/python pipeline/scouting/build_opponent_shells.py --org cofc --season 2026
+```
+
 It reads organization and season config from:
 
 - `configs/organizations/cofc.json`
@@ -37,6 +43,13 @@ It writes model outputs to:
 - `pipeline/outputs/reports/scouting/2026/schedule/schedule_qa_report.md`
 - `pipeline/outputs/reports/scouting/2026/schedule/schedule_clean.csv`
 - `pipeline/outputs/reports/scouting/2026/schedule/schedule_summary.json`
+- `pipeline/outputs/reports/scouting/2026/opponents/<match_slug>/executive_brief.md`
+- `pipeline/outputs/reports/scouting/2026/opponents/<match_slug>/data_profile.md`
+- `pipeline/outputs/reports/scouting/2026/opponents/<match_slug>/simulation.md`
+- `pipeline/outputs/reports/scouting/2026/opponents/<match_slug>/set_pieces.md`
+- `pipeline/outputs/reports/scouting/2026/opponents/<match_slug>/match_day_observation.md`
+- `pipeline/outputs/reports/scouting/2026/opponents/<match_slug>/post_match_validation.md`
+- `pipeline/outputs/reports/scouting/2026/opponents/<match_slug>/qa_report.md`
 
 ## Why This Counts as ML
 
