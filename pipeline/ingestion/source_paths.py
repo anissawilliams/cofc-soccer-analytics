@@ -32,6 +32,9 @@ class SourcePaths:
     reports_dir: Path
     roster_path: Path
     future_spiideo_dir: Path
+    source_cache_dir: Path
+    source_storage_bucket: str
+    source_storage_prefix: str
 
 
 def _env_path(name: str, default: Path) -> Path:
@@ -61,6 +64,9 @@ def get_source_paths() -> SourcePaths:
     reports_dir = _env_path("COFC_REPORTS_DIR", pipeline_root / "outputs" / "reports")
     roster_path = _env_path("COFC_ROSTER_PATH", pipeline_root / "ingestion" / "roster_2025.csv")
     future_spiideo_dir = _env_path("COFC_SPIIDEO_DIR", raw_dir / "spiideo")
+    source_cache_dir = _env_path("COFC_SOURCE_CACHE_DIR", pipeline_root / ".cache" / "source_files")
+    source_storage_bucket = os.environ.get("COFC_SOURCE_STORAGE_BUCKET", "source-files")
+    source_storage_prefix = os.environ.get("COFC_SOURCE_STORAGE_PREFIX", "cofc").strip("/")
 
     return SourcePaths(
         repo_root=repo_root,
@@ -75,6 +81,9 @@ def get_source_paths() -> SourcePaths:
         reports_dir=reports_dir,
         roster_path=roster_path,
         future_spiideo_dir=future_spiideo_dir,
+        source_cache_dir=source_cache_dir,
+        source_storage_bucket=source_storage_bucket,
+        source_storage_prefix=source_storage_prefix,
     )
 
 

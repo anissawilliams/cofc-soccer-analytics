@@ -19,6 +19,7 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+pipeline/.cache/
 
 # ── Jupyter ───────────────────────────────────────────────────
 .ipynb_checkpoints/
@@ -43,6 +44,11 @@ outputs/
 *.csv
 *.json
 *.xml
+*.xml.*
+*.utf8
+*.xlsx
+*.pdf
+*.png
 !db_ready_schema.json.bak
 !configs/
 !configs/**/*.json
@@ -52,11 +58,16 @@ outputs/
 !pipeline/outputs/reports/
 !pipeline/outputs/reports/scouting/
 !pipeline/outputs/reports/scouting/**/*.md
+!pipeline/outputs/reports/score_reconciliation/
+!pipeline/outputs/reports/score_reconciliation/**/*.md
 
 data/
 !pipeline/data/
+!pipeline/data/README.md
 !pipeline/data/schedules/
 !pipeline/data/schedules/*.csv
+!pipeline/data/manifests/
+!pipeline/data/manifests/*.csv
 # ── Secrets ───────────────────────────────────────────────────
 *.pem
 *.key

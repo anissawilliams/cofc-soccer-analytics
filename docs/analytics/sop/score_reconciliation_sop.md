@@ -51,6 +51,23 @@ Key files:
 - `*_score_explainer.csv`: grouped player formulas, e.g. `11 x 0.25 = 2.75`, by raw label and mapped COUG metric. This is the best input for a future coach-facing drilldown view.
 - `*_score_reconciliation.csv`: event-derived totals compared to legacy CSV and PDF-derived totals.
 
+5. Build the triage report:
+
+```bash
+python pipeline/analytics/build_reconciliation_triage.py --season 2025
+```
+
+This creates:
+
+- `pipeline/outputs/reports/score_reconciliation/2025/2025_reconciliation_triage.csv`
+- `pipeline/outputs/reports/score_reconciliation/2025/2025_reconciliation_triage.md`
+- `docs/analytics/reconciliation_triage_2025.md`
+
+Use this report to prioritize investigation. It classifies rows as
+`legacy_only_player`, `candidate_below_legacy`,
+`legacy_peak_without_normalized_peak_events`, `candidate_above_legacy`,
+`within_threshold`, and related diagnostic statuses.
+
 ## Mapping Layer
 
 Raw Wyscout labels are mapped to coach-facing COUG metrics in:

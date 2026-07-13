@@ -73,15 +73,21 @@ COUG score reconciliation:
 - [2025 source inventory](docs/analytics/source_inventory_2025.md)
 - [Coach questions](docs/analytics/coach_questions.md)
 - [PEAK normalization](docs/analytics/peak_normalization.md)
+- [Repo hygiene](docs/analytics/repo_hygiene.md)
 - [Scouting README](docs/analytics/scouting/README.md)
 - [Opposition report product spec](docs/analytics/scouting/opposition_report_product_spec.md)
 - [Score reconciliation SOP](docs/analytics/sop/score_reconciliation_sop.md)
 
 ## Data Notes
 
-This repo currently tracks enough 2025 source/sample data to support local
-development and reproducible demos. Larger or future raw exports should be
-handled intentionally through the source-path conventions and `.gitignore`.
+This repo should track code, configs, docs, schedules, manifests, and small
+mapping tables. Raw vendor exports and generated outputs should normally live
+outside Git, either locally or in a shared Google Drive/data store, and be
+connected through the `COFC_*` path overrides in `.env`.
+
+For durable raw file storage, prefer Supabase Storage. The ingestion parser
+keeps a local-file interface and can download missing Wyscout XML files from
+Storage into `COFC_SOURCE_CACHE_DIR` when `COFC_ENABLE_SUPABASE_STORAGE=true`.
 
 Current source truth is summarized in:
 
@@ -105,10 +111,10 @@ configs/                         Organization and season configs
 docs/analytics/                  SOPs, handoff docs, scouting specs
 pipeline/analytics/              COUG scoring, reconciliation, legacy analytics
 pipeline/core/                   Shared config/path helpers
-pipeline/data/                   Current tracked source/sample data
+pipeline/data/                   Schedules/manifests plus local data mount docs
 pipeline/ingestion/              Source inventory, parsing, loading
 pipeline/scouting/               Schedule QA, match model, opponent shells
-pipeline/outputs/reports/        Selected markdown report artifacts
+pipeline/outputs/reports/        Generated outputs; selected Markdown may be tracked
 frontend/                        React app
 backend/                         FastAPI/backend experiments
 streamlit/                       Streamlit app, if present locally
@@ -131,7 +137,8 @@ Do not commit:
 - downloaded secrets
 - accidental scratch files
 - huge ad hoc search outputs
-- new raw data unless it is intentionally part of the reproducible sample set
+- new raw data unless it is intentionally approved as a tiny fixture
+- generated CSV/PNG/XLSX/PDF outputs
 
 ## Current Strategic Direction
 

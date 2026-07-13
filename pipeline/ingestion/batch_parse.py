@@ -47,6 +47,7 @@ warnings.filterwarnings("ignore")
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
 from source_paths import get_source_paths
+from source_files import resolve_wyscout_file
 
 PATHS = get_source_paths()
 DEFAULT_PROJECT_ROOT = PATHS.pipeline_root
@@ -66,15 +67,12 @@ def setup_imports(project_root: Path):
 def find_matches(project_root: Path, season: str, slug: str = None) -> list[Path]:
     """Find all match folders for a season, or a single one if slug is given."""
     matches_dir = get_source_paths().matches_dir / str(season)
-    if not matches_dir.exists():
+    if not matches_dir.exists() and not slug:
         print(f"❌ Matches directory not found: {matches_dir}")
         sys.exit(1)
 
     if slug:
         match_dir = matches_dir / slug
-        if not match_dir.exists():
-            print(f"❌ Match folder not found: {match_dir}")
-            sys.exit(1)
         return [match_dir]
 
     dirs = sorted([
@@ -96,12 +94,14 @@ def parse_one_match(
     """Parse a single match folder and save clean CSVs. Returns summary dict."""
     slug = match_dir.name
 
-    # Locate files
-    sportscode_file = match_dir / f"{slug}_cfc_sportscode.xml"
+    # Locate files. The resolver prefers local disk and can fall back to a
+    # Supabase Storage-backed local cache when enabled.
+    sportscode_source = resolve_wyscout_file(season, slug, "sportscode", required=False)
     spiideo_file    = match_dir / f"{slug}_spiideo.xml"
 
-    if not sportscode_file.exists():
+    if sportscode_source is None:
         return {"slug": slug, "status": "SKIPPED", "reason": "no sportscode XML"}
+    sportscode_file = sportscode_source.path
 
     output_dir = get_source_paths().parsed_outputs_dir / str(season) / slug
     if dry_run:
@@ -114,6 +114,7 @@ def parse_one_match(
     print("=" * 55)
 
     print("\n[1/2] Parsing Wyscout XML...")
+    print(f"      Source: {sportscode_source.origin} | {sportscode_file}")
     wyscout_data = parse_sportscode(sportscode_file, roster_path=roster_path)
     df_players = pd.DataFrame(wyscout_data["player_events"])
     n_players = df_players["name"].nunique()
