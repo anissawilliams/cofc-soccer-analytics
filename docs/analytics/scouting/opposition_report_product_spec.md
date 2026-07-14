@@ -96,6 +96,14 @@ Use 2025, then 2024+2025, to create:
 
 This phase improves as 2024 data is added.
 
+While Wyscout access is unavailable, use existing 2025 CofC-vs-opponent PDFs as
+seed evidence for repeated 2026 opponents. See:
+
+`docs/analytics/scouting/opponent_pdf_seed_data.md`
+
+This seed data should be labeled as prior head-to-head evidence, not full
+opponent-history coverage.
+
 ### Phase 3: Opponent Data Integration
 
 For each opponent, ingest available Wyscout/Spiideo/video data to populate:

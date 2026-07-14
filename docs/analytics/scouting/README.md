@@ -37,6 +37,11 @@ Use this as the pre-scouting checkpoint. It verifies whether training data,
 model outputs, and the target-season schedule are present and whether the model
 should be treated as ready, cautionary, or blocked.
 
+Until Wyscout access is restored, use existing 2025 CofC-vs-opponent PDFs as
+seed opposition evidence:
+
+- `docs/analytics/scouting/opponent_pdf_seed_data.md`
+
 It reads organization and season config from:
 
 - `configs/organizations/cofc.json`
@@ -71,11 +76,12 @@ and decision-support model, not a final high-confidence predictive product.
 
 ## What To Add Next
 
-1. Add 2024 match stats to increase training sample size.
-2. Add opponent history features for 2026 opponents as data becomes available.
-3. Add a pre-match report command that joins the schedule, opponent history, and
+1. Extract seed opponent rows from 2025 CofC-vs-opponent Wyscout PDFs.
+2. Add 2024 match stats to increase training sample size if accessible.
+3. Add opponent history features for 2026 opponents as data becomes available.
+4. Add a pre-match report command that joins the schedule, opponent history, and
    model outputs.
-4. Add COUG Table match-level features once the scoring reconciliation is
+5. Add COUG Table match-level features once the scoring reconciliation is
    stable.
-5. Add a GitHub Actions workflow that runs config checks and a dry-run model
+6. Add a GitHub Actions workflow that runs config checks and a dry-run model
    build on pull requests.

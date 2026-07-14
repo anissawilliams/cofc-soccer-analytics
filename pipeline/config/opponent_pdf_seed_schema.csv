@@ -1,0 +1,29 @@
+column,required,description
+source_season,true,Season of the source match in the PDF
+source_match_date,true,Date of the source match
+source_match_slug,true,Pipeline slug for the source match
+source_file,true,PDF/source file path or registered source_file reference
+team,true,Team represented by this row
+opponent,true,Opponent in the source match
+is_cofc,true,True when row is College of Charleston
+home_away,true,H/A/N from this team's perspective
+competition,false,Competition or match category
+team_formation,false,Formation used by team
+opponent_formation,false,Formation faced by team
+team_formation_family,false,Normalized family such as back_four/back_three/diamond/unknown
+opponent_formation_family,false,Formation family faced by team
+goals_for,false,Goals scored by team
+goals_against,false,Goals conceded by team
+xg_for,false,Expected goals for team
+xg_against,false,Expected goals conceded
+shots_for,false,Shots for team
+shots_against,false,Shots conceded
+shots_on_target_for,false,Shots on target for team
+shots_on_target_against,false,Shots on target conceded
+possession_pct,false,Possession percentage
+pass_accuracy_pct,false,Pass accuracy percentage
+recoveries,false,Recoveries
+duels_won,false,Duels won
+set_piece_shots_for,false,Set-piece shots for team
+set_piece_shots_against,false,Set-piece shots conceded
+notes,false,Analyst notes or extraction caveats
