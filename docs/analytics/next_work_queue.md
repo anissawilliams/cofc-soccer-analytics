@@ -85,11 +85,23 @@ Expected fresh-clone behavior:
 
 ## Analytics Tasks After Source Stability
 
-1. Tighten PEAK implementation using `pipeline/config/wyscout_peak_normalization.csv`.
-2. Implement Advance threshold scoring with the confirmed `0.5 per 10` rule.
-3. Add double-count priority so Punish wins over Advance.
-4. Rebuild reconciliation reports and compare candidate PEAK vs legacy/PDF.
-5. Move coach-facing drilldown toward:
+1. Run the scoring guardrails before any coach-facing report:
+
+   ```bash
+   python pipeline/analytics/validate_scoring_config.py
+   python pipeline/analytics/check_peak_scoring_fixture.py
+   ```
+
+   Expected status:
+
+   - `Scoring config validation: 0 error(s), 0 warning(s)`
+   - `PEAK scoring fixture: all checks passed`
+
+2. Tighten PEAK implementation using `pipeline/config/wyscout_peak_normalization.csv`.
+3. Implement Advance threshold scoring with the confirmed `0.5 per 10` rule.
+4. Add double-count priority so Punish wins over Advance.
+5. Rebuild reconciliation reports and compare candidate PEAK vs legacy/PDF.
+6. Move coach-facing drilldown toward:
 
    ```text
    Player -> bucket -> raw label -> mapped COUG metric -> count -> weight -> score -> source file

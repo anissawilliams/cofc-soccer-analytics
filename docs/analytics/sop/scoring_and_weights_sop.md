@@ -98,20 +98,45 @@ review rather than hiding assumptions.
 Standard flow:
 
 1. Inventory sources.
-2. Parse/load event evidence.
-3. Confirm `athlete_event` rows exist for the match.
-4. Run score reconciliation.
-5. Review event trace and score explainer.
-6. Only then regenerate official score outputs.
+2. Validate local scoring normalization config.
+3. Run the PEAK fixture behavior check.
+4. Parse/load event evidence.
+5. Confirm `athlete_event` rows exist for the match.
+6. Run score reconciliation.
+7. Review event trace and score explainer.
+8. Only then regenerate official score outputs.
 
 Useful commands:
 
 ```bash
 .venv/bin/python pipeline/ingestion/inventory_sources.py --season 2025
+.venv/bin/python pipeline/analytics/validate_scoring_config.py
+.venv/bin/python pipeline/analytics/check_peak_scoring_fixture.py
 .venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season 2025
 ```
 
+The scoring config validator writes:
+
+```text
+docs/analytics/scoring_config_validation.md
+```
+
+For 2026 coach-facing reports, this validation should be clean before the
+report is treated as ready.
+
+The PEAK fixture behavior check should also pass. It verifies the scoring code,
+not just the config file shape:
+
+- Goal scorer = `3.0`
+- Assist = `2.0`
+- Punish Opportunity = `0.2`
+- Contextual Shot with Opportunity = `0.2`
+- Advance = `0.5` per `10` actions
+- Free kick shot remains excluded
+
 ## 8. Change Log
 
+- v0.4 — Added fixture-based PEAK behavior check.
+- v0.3 — Added scoring config validation as a required pre-report guardrail.
 - v0.2 — Added coach-confirmed source-of-truth and PEAK rules.
 - v0.1 — Scaffold created.
