@@ -1,0 +1,126 @@
+{
+  "org_key": "cofc",
+  "program_name": "College of Charleston Men's Soccer",
+  "active_season": "2026",
+  "minimum_minutes": {
+    "internal_profile": 300,
+    "recruit_profile": 450
+  },
+  "similarity": {
+    "method": "weighted_cosine_similarity",
+    "normalization": "position_group_z_score",
+    "top_n_comps": 5,
+    "top_n_shortlist": 25
+  },
+  "position_groups": {
+    "GK": {
+      "labels": ["GK", "Goalkeeper"],
+      "description": "Goalkeepers"
+    },
+    "CB": {
+      "labels": ["CB", "LCB", "RCB", "Center Back", "Centre Back"],
+      "description": "Center backs"
+    },
+    "FB_WB": {
+      "labels": ["LB", "RB", "LWB", "RWB", "FB", "WB", "Fullback", "Wingback"],
+      "description": "Fullbacks and wingbacks"
+    },
+    "DM_CM": {
+      "labels": ["DM", "CM", "CDM", "RCM", "LCM", "Midfielder"],
+      "description": "Defensive and central midfielders"
+    },
+    "AM_W": {
+      "labels": ["AM", "CAM", "LW", "RW", "W", "Wing", "Winger"],
+      "description": "Attacking midfielders and wingers"
+    },
+    "ST": {
+      "labels": ["ST", "CF", "F", "FW", "Forward", "Striker"],
+      "description": "Strikers and center forwards"
+    }
+  },
+  "feature_groups": {
+    "availability": [
+      "minutes",
+      "matches"
+    ],
+    "attacking": [
+      "goals_per90",
+      "xg_per90",
+      "shots_per90",
+      "shots_on_target_per90",
+      "assists_per90",
+      "key_passes_per90",
+      "smart_passes_per90"
+    ],
+    "possession_progression": [
+      "passes_per90",
+      "pass_accuracy_pct",
+      "progressive_passes_per90",
+      "dribbles_per90",
+      "successful_dribbles_pct"
+    ],
+    "defending": [
+      "interceptions_per90",
+      "tackles_per90",
+      "defensive_duels_per90",
+      "defensive_duels_won_pct",
+      "recoveries_per90"
+    ],
+    "aerial_set_piece": [
+      "aerial_duels_per90",
+      "aerial_duels_won_pct",
+      "set_piece_shots_per90"
+    ],
+    "cofc_fit": [
+      "aset_per90",
+      "peak_per90",
+      "set_piece_per90",
+      "coug_total_per90"
+    ]
+  },
+  "position_feature_weights": {
+    "GK": {
+      "availability": 0.15,
+      "defending": 0.35,
+      "possession_progression": 0.2,
+      "aerial_set_piece": 0.15,
+      "cofc_fit": 0.15
+    },
+    "CB": {
+      "availability": 0.1,
+      "defending": 0.35,
+      "possession_progression": 0.2,
+      "aerial_set_piece": 0.2,
+      "cofc_fit": 0.15
+    },
+    "FB_WB": {
+      "availability": 0.1,
+      "attacking": 0.2,
+      "defending": 0.25,
+      "possession_progression": 0.3,
+      "cofc_fit": 0.15
+    },
+    "DM_CM": {
+      "availability": 0.1,
+      "defending": 0.25,
+      "possession_progression": 0.35,
+      "attacking": 0.15,
+      "cofc_fit": 0.15
+    },
+    "AM_W": {
+      "availability": 0.1,
+      "attacking": 0.35,
+      "possession_progression": 0.25,
+      "defending": 0.15,
+      "cofc_fit": 0.15
+    },
+    "ST": {
+      "availability": 0.1,
+      "attacking": 0.45,
+      "possession_progression": 0.15,
+      "defending": 0.1,
+      "aerial_set_piece": 0.05,
+      "cofc_fit": 0.15
+    }
+  }
+}

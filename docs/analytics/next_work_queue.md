@@ -114,6 +114,27 @@ Expected fresh-clone behavior:
 3. Add prior-season data if/when Wyscout access returns.
 4. Keep ML out of COUG scoring; use ML for scouting, simulation, and recruiting similarity.
 
+## Recruiting / Player Similarity Queue
+
+1. Use `docs/analytics/recruiting/player_similarity_product_spec.md` as the
+   product spec for Objective 3.
+2. Use `pipeline/config/recruiting_player_profile_schema.csv` for internal and
+   recruit player profile exports.
+3. Run the readiness command:
+
+   ```bash
+   python pipeline/recruiting/build_recruiting_readiness_report.py
+   ```
+
+   Current expected status is `BLOCKED` until these files exist:
+
+   ```text
+   pipeline/data/recruiting/internal_player_profiles.csv
+   pipeline/data/recruiting/recruit_player_profiles.csv
+   ```
+4. Build similarity scoring after at least one internal profile file and one
+   recruit profile file are available.
+
 ## Frontend Readiness
 
 1. Before 2026 match reporting goes live, update the frontend COUG Table views

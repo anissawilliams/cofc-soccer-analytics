@@ -154,3 +154,5 @@ The immediate build path is:
 3. Generate and progressively populate 2026 scouting report shells.
 4. Add 2026 match results/files as they arrive.
 5. Expand modeling with additional historical data if it becomes available.
+6. Build recruiting similarity from the dedicated product spec and profile
+   schema once player exports are available.

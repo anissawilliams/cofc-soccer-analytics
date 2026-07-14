@@ -1,0 +1,43 @@
+column,required,description
+player_id,true,Stable player identifier from Wyscout/source system when available
+player_name,true,Player display name
+source_system,true,Source system such as wyscout/manual/cofc_internal
+source_file,false,Source file path or source_file reference
+season,true,Season represented by the profile
+team,true,Player team
+competition,false,Competition or league
+country,false,Country or recruiting market
+date_of_birth,false,Date of birth
+age,false,Player age at profile date
+primary_position,true,Primary listed position
+secondary_positions,false,Other listed positions
+position_group,true,Normalized position group such as GK/CB/FB_WB/DM_CM/AM_W/ST
+dominant_foot,false,Dominant foot
+height_cm,false,Height in centimeters
+minutes,true,Minutes played in sample
+matches,false,Matches in sample
+goals_per90,false,Goals per 90
+xg_per90,false,Expected goals per 90
+shots_per90,false,Shots per 90
+shots_on_target_per90,false,Shots on target per 90
+assists_per90,false,Assists per 90
+key_passes_per90,false,Key passes per 90
+smart_passes_per90,false,Smart passes per 90
+passes_per90,false,Passes per 90
+pass_accuracy_pct,false,Pass accuracy percentage
+progressive_passes_per90,false,Progressive passes per 90
+dribbles_per90,false,Dribbles per 90
+successful_dribbles_pct,false,Successful dribble percentage
+interceptions_per90,false,Interceptions per 90
+tackles_per90,false,Tackles per 90
+defensive_duels_per90,false,Defensive duels per 90
+defensive_duels_won_pct,false,Defensive duel win percentage
+recoveries_per90,false,Recoveries per 90
+aerial_duels_per90,false,Aerial duels per 90
+aerial_duels_won_pct,false,Aerial duel win percentage
+set_piece_shots_per90,false,Set-piece shots per 90
+aset_per90,false,COUG ASET per 90 when available
+peak_per90,false,COUG PEAK per 90 when available
+set_piece_per90,false,COUG set piece per 90 when available
+coug_total_per90,false,COUG total per 90 when available
+notes,false,Analyst notes or caveats
