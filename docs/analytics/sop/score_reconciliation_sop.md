@@ -119,3 +119,68 @@ Large PEAK/ASET deltas usually mean one of these:
 ## Do Not Change Weights Blindly
 
 Before changing a weight, identify whether the problem is source coverage, event mapping, positional filtering, or the actual coefficient.
+
+## Pre-Publication Preflight Check
+
+Before any COUG Table output is shared with coaching staff, run:
+
+```bash
+python pipeline/analytics/preflight_check.py --season <season> \
+  --output pipeline/outputs/reports/score_reconciliation/<season>/preflight_report.md
+```
+
+This cross-references the reconciliation triage against the analyst signoff
+file at `pipeline/config/reconciliation_signoffs.csv`. Exit code 0 means it
+is safe to publish. Exit code 1 means there are unresolved blocking issues.
+
+### Signoff file
+
+`pipeline/config/reconciliation_signoffs.csv` is a tracked file that records
+analyst sign-off on every known discrepancy. Each row covers one
+season/match/player combination.
+
+Columns:
+
+| Column | Description |
+| --- | --- |
+| `season` | Season year |
+| `slug` | Match slug |
+| `player_key` | Player display name as it appears in triage |
+| `issue_type` | Triage status: `needs_source_review` / `candidate_below_legacy` / `legacy_only_player` |
+| `disposition` | See below |
+| `note` | What was found and what will resolve it |
+| `reviewed_by` | Analyst name or initials |
+| `reviewed_date` | Date reviewed (YYYY-MM-DD) |
+
+### Disposition reference
+
+| Disposition | Preflight effect | When to use |
+| --- | --- | --- |
+| `cleared` | Silent pass | Issue investigated and confirmed resolved |
+| `source_missing` | Warn-level pass | Raw XML / source file not yet available |
+| `known_gap` | Warn-level pass | Gap understood; will be addressed in future scoring revision |
+| `under_review` | Block | Investigation started but not complete |
+| _(no entry)_ | Block | Issue has never been reviewed |
+
+### 2025 current status
+
+All known 2025 discrepancies are signed off. Expected preflight result:
+
+```
+⚠️ PASSED WITH WARNINGS — 18 documented issues, 0 blocks
+```
+
+Most 2025 warnings are `source_missing` and will clear automatically when
+W&M supplemental XMLs (`player_events.xml`, `team_events.xml`) are registered
+and reconciliation is rerun. Two UNCW gaps are `known_gap` pending
+`wyscout_peak_normalization.csv` tightening.
+
+### 2026 workflow
+
+For each 2026 match after ingestion:
+
+1. Run reconciliation: `reconcile_coug_scores.py --season 2026 --slug <slug>`
+2. Run preflight: `preflight_check.py --season 2026`
+3. Investigate any new blocks and add signoffs to `reconciliation_signoffs.csv`
+4. Rerun preflight until exit code is 0
+5. Publish coach-facing report with warning caveats noted

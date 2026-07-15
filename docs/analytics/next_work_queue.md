@@ -85,7 +85,17 @@ Expected fresh-clone behavior:
 
 ## Analytics Tasks After Source Stability
 
-1. Run the scoring guardrails before any coach-facing report:
+1. Run the preflight check before any coach-facing report:
+
+   ```bash
+   python pipeline/analytics/preflight_check.py --season 2025
+   ```
+
+   All known 2025 issues are signed off in `pipeline/config/reconciliation_signoffs.csv`.
+   Current expected status: `PASSED WITH WARNINGS` (18 documented issues, 0 blocks).
+   Issues clear automatically when W&M supplemental XMLs land and reconciliation is rerun.
+
+2. Run the scoring guardrails before any coach-facing report:
 
    ```bash
    python pipeline/analytics/validate_scoring_config.py
@@ -143,11 +153,6 @@ Expected fresh-clone behavior:
 2. Add an explicit season selector or config-driven active season so the app
    can show 2025 calibration data without accidentally presenting it as current
    coach-facing output.
-3. Build a private staff surface for scouting and player development. React /
-   FastAPI is fine, but Streamlit can be revived if coaches strongly prefer it.
-4. Avoid maintaining the same private workflow in both React and Streamlit.
-5. If Streamlit is revived, add a tested `streamlit_app.py` and keep shared
-   Supabase/query logic in one maintained module.
 
 ## Commit Hygiene
 

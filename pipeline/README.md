@@ -1,173 +1,226 @@
-# CofC Soccer Analytics Pipeline
-**College of Charleston Men's Soccer | Director of Data**
+# CofC Soccer Analytics — Pipeline
 
-A reproducible machine learning pipeline for match prediction, tactical scouting, and player evaluation built on real match data from the 2025 season.
+**College of Charleston Men's Soccer | Head of Sports Performance & Data Intelligence**
 
----
-
-## Overview
-
-This project ingests multi-source data from Wyscout, engineers football-specific features, and produces:
-- **Match outcome predictions** using logistic regression (62.5% LOO accuracy)
-- **Monte Carlo match simulations** using Poisson-distributed goal modeling
-- **Automated pre-match scouting reports** for coaching staff
-
-This is the data infrastructure layer for the COUG Table — a coach-defined player evaluation framework tracking ASET (defensive), PEAK (offensive), and Set Piece metrics.
+This directory contains the full analytics pipeline: data ingestion, COUG Table
+scoring, match outcome modeling, scouting, and recruiting similarity.
 
 ---
 
-## Project Structure
+## Three Lanes
 
-```
-cofc_analytics/
-│
-├── data/
-│   ├── raw/                        # Wyscout exports (not tracked in git)
-│   └── processed/                  # Cleaned feature matrices
-│
-├── notebooks/
-│   └── 01_match_prediction.ipynb   # End-to-end walkthrough
-│
-├── src/
-│   ├── ingest.py                   # Data loading, cleaning, parsing
-│   ├── features.py                 # Feature engineering
-│   ├── model.py                    # Logistic regression + LOO evaluation
-│   ├── simulate.py                 # Monte Carlo Poisson simulation
-│   └── report.py                   # Automated scouting report generator
-│
-├── outputs/
-│   └── reports/                    # Generated pre-match reports
-│
-├── requirements.txt
-└── README.md
+The pipeline has three separate, complementary lanes. Keep them distinct.
+
+| Lane | Purpose | ML? |
+|------|---------|-----|
+| **COUG Table** | Coach-defined player evaluation (ASET / PEAK / Set Piece) | No — rules-based |
+| **Scouting & Modeling** | Match outcome prediction, simulation, opponent prep | Yes |
+| **Recruiting Similarity** | Compare recruits to CofC ideal profiles by position | Yes (unsupervised) |
+
+---
+
+## Directory Layout
+
+```text
+pipeline/
+├── analytics/          COUG scoring, reconciliation, validation
+├── core/               Shared config/path helpers
+├── config/             Wyscout label maps, profile schemas, weight tables
+├── data/               Schedules, manifests, recruiting profiles (local/gitignored)
+├── ingestion/          Source inventory, parsing, Supabase loading
+├── notebooks/          Exploratory notebooks (gitignored outputs)
+├── outputs/            Generated reports — selected Markdown tracked in Git
+├── recruiting/         Recruiting similarity pipeline
+└── scouting/           Schedule QA, match model, opponent report shells
 ```
 
 ---
 
-## Pipeline
+## Lane 1 — COUG Table
 
-```
-Wyscout Export (.xlsx)
-        ↓
-    ingest.py          Load, clean, parse results from match strings
-        ↓
-  Feature Matrix       xG diff, pass accuracy diff, possession diff,
-                       shots on target, recoveries, duels won
-        ↓
-    model.py           Logistic regression
-                       Leave-One-Out cross validation
-                       62.5% accuracy (vs 33% random baseline)
-        ↓
-   simulate.py         Poisson Monte Carlo (10,000 iterations)
-                       Win / Draw / Loss probabilities
-                       Scoreline distribution
-        ↓
-    report.py          Automated pre-match scouting report
-                       Tactical insights + key matchup flags
-```
-
----
-
-## Key Results
-
-| Metric | Value |
-|--------|-------|
-| Season record | 6W - 3D - 7L |
-| Logistic regression accuracy (LOO) | 62.5% |
-| Monte Carlo accuracy | 50.0% |
-| Most predictive feature | CofC pass accuracy |
-| Simulation iterations | 10,000 per match |
-
-**Notable finding:** CofC's pass accuracy is the single most predictive feature for match outcomes — more predictive than xG differential. This suggests build-up quality matters more than chance creation volume for this team.
-
----
-
-## Data Sources
-
-| Source | Data Type | Usage |
-|--------|-----------|-------|
-| Wyscout | Match event stats | Primary — team & player metrics |
-| Spiideo | Video tagging | Manual COUG Table events |
-| Catapult | GPS / physical load | Player workload (in progress) |
-
----
-
-## COUG Table Framework
-
-The COUG Table is a coach-defined player evaluation system with three metric categories:
-
-**ASET (Defensive)**
-- Possession Regain
-- Counter Press under 5 seconds
-- Block in Box
-- Clearance from Danger
-- Clean Sheet / Concede Goal
-
-**PEAK (Offensive)**
-- Punish Action after Regain
-- Establishing Possession
-- Goals / Assists
-
-**Set Piece**
-- Win 1st Header (offensive & defensive)
-- Goal scoring (phased weighting)
-- Penalty / Free kick save or concede
-
----
-
-## Usage
-
+### Preflight check — run before publishing to coaches
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+.venv/bin/python pipeline/analytics/preflight_check.py --season 2025
+```
+Exits non-zero if any reconciliation issue is unresolved or unsigned. Write
+a preflight report:
+```bash
+.venv/bin/python pipeline/analytics/preflight_check.py --season 2025 \
+  --output pipeline/outputs/reports/score_reconciliation/2025/preflight_report.md
+```
+Add signoffs for known issues in `pipeline/config/reconciliation_signoffs.csv`
+before rerunning. See the disposition reference at the bottom of any preflight
+report for guidance.
 
-# Run ingestion and feature engineering
-python src/ingest.py
+### Validate scoring config
+```bash
+.venv/bin/python pipeline/analytics/validate_scoring_config.py
+.venv/bin/python pipeline/analytics/check_peak_scoring_fixture.py
+```
+Expected: `0 error(s), 0 warning(s)` and `all checks passed`.
 
-# Train and evaluate prediction model
-python src/model.py
-
-# Run Monte Carlo simulation
-python src/simulate.py
-
-# Generate pre-match scouting report
-python src/report.py
+### Ingest source files for a match
+```bash
+.venv/bin/python pipeline/ingestion/inventory_sources.py --season 2025
+.venv/bin/python pipeline/ingestion/inventory_sources.py --season 2025 --csv
+.venv/bin/python pipeline/ingestion/register_source_files.py --season 2025 --slug <match_slug>
+.venv/bin/python pipeline/ingestion/batch_parse.py --season 2025 --slug <match_slug>
 ```
 
----
-
-## Requirements
-
+### Reconcile COUG scores
+```bash
+.venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season 2025
 ```
-pandas
-numpy
-scikit-learn
-openpyxl
-jupyter
-matplotlib
-seaborn
+Output: `pipeline/outputs/reports/score_reconciliation/2025/`
+
+### Smoke test (run after any clone or setup change)
+```bash
+.venv/bin/python pipeline/ingestion/inventory_sources.py --season 2025 --slug 2025-09-27_william_mary
+.venv/bin/python pipeline/ingestion/batch_parse.py --season 2025 --slug 2025-09-27_william_mary --dry-run
+.venv/bin/python pipeline/ingestion/batch_parse.py --season 2025 --slug 2025-09-27_william_mary
 ```
 
----
-
-## Roadmap
-
-- [ ] Player similarity model for recruiting (Objective 3)
-- [ ] COUG Table automated scoring from Wyscout events
-- [ ] Catapult physical load integration
-- [ ] Dashboard for coaching staff (Streamlit)
-- [ ] Opponent scouting from Wyscout team profiles
-- [ ] Bayesian model comparison vs Poisson baseline
+### Key docs
+- [PEAK normalization rules](../docs/analytics/peak_normalization.md)
+- [Scoring & weights SOP](../docs/analytics/sop/scoring_and_weights_sop.md)
+- [Score reconciliation SOP](../docs/analytics/sop/score_reconciliation_sop.md)
+- [Data validation SOP](../docs/analytics/sop/data_validation_sop.md)
+- [2025 reconciliation triage](../docs/analytics/reconciliation_triage_2025.md)
 
 ---
 
-## Author
+## Lane 2 — Scouting & Modeling
 
-**Anissa Williams**
-Director of Data — College of Charleston Men's Soccer
-M.S. Data Science Candidate, College of Charleston
-Graduate Practicum — DATA 698
+### 2026 schedule QA
+```bash
+.venv/bin/python pipeline/scouting/build_schedule_report.py --org cofc --season 2026
+```
+Output: `pipeline/outputs/reports/scouting/2026/schedule/`
+
+### 2026 opponent report shells
+```bash
+.venv/bin/python pipeline/scouting/build_opponent_shells.py --org cofc --season 2026
+```
+Output: `pipeline/outputs/reports/scouting/2026/opponents/<slug>/`
+
+### 2025 match outcome model
+```bash
+.venv/bin/python pipeline/scouting/build_match_model.py --org cofc --season 2025
+```
+Output: `pipeline/outputs/reports/scouting/2025/models/`
+
+Current metrics: 16 matches · LOO accuracy 62.5% · log loss 1.295
+
+### Model readiness check
+```bash
+.venv/bin/python pipeline/scouting/build_model_readiness_report.py --org cofc --season 2026
+```
+
+### Key docs
+- [Scouting README](../docs/analytics/scouting/README.md)
+- [Opposition report product spec](../docs/analytics/scouting/opposition_report_product_spec.md)
+- [Model readiness report](outputs/reports/scouting/2026/model_readiness_report.md)
 
 ---
 
-*Built on real match data. All Wyscout exports excluded from version control.*
+## Lane 3 — Recruiting Similarity
+
+Player similarity is an unsupervised (cosine similarity) model. It is not a
+quality predictor — it identifies statistical profile matches. Keep it separate
+from COUG Table scoring until 2026 event provenance is fully stable.
+
+### Step 1 — Export internal CofC profiles from Supabase
+```bash
+.venv/bin/python pipeline/recruiting/export_internal_profiles.py --season 2025
+```
+Output: `pipeline/data/recruiting/internal_player_profiles.csv` (gitignored)
+
+### Step 2 — Check readiness
+```bash
+.venv/bin/python pipeline/recruiting/build_recruiting_readiness_report.py
+```
+Output: `pipeline/outputs/reports/recruiting/2026/recruiting_readiness_report.md`
+
+Status will be `BLOCKED` until `recruit_player_profiles.csv` exists.
+Status will be `READY` once both profile files are present and valid.
+
+### Step 3 — Run similarity scoring
+
+**With recruit profiles (normal mode):**
+```bash
+.venv/bin/python pipeline/recruiting/build_similarity_scores.py --season 2025
+```
+
+**Internal-only validation (no recruits needed — tests the engine):**
+```bash
+.venv/bin/python pipeline/recruiting/build_similarity_scores.py --season 2025 --internal-only
+```
+
+**Single position group:**
+```bash
+.venv/bin/python pipeline/recruiting/build_similarity_scores.py --season 2025 --position-group CB
+```
+
+Outputs to `pipeline/outputs/reports/recruiting/2026/`:
+
+| File | Description |
+|------|-------------|
+| `position_ideal_profiles.csv` | Mean feature profile per position group |
+| `recruit_similarity_scores.csv` | Recruits ranked by fit score |
+| `recruit_feature_gaps.csv` | Per-recruit feature delta vs ideal |
+| `nearest_cofc_comps.csv` | Top-5 CofC comps per recruit |
+| `shortlist_<pg>.md` | Coach-facing shortlist per position group |
+
+In internal-only mode outputs are prefixed `internal_` and the shortlists show
+roster comps instead of recruit rankings.
+
+### Recruit profile intake
+
+When recruit data is available, populate:
+```text
+pipeline/data/recruiting/recruit_player_profiles.csv
+```
+using the schema at `pipeline/config/recruiting_player_profile_schema.csv`.
+
+Required fields: `player_id`, `player_name`, `source_system`, `season`,
+`team`, `primary_position`, `position_group`, `minutes`.
+
+All other fields (per-90 stats, COUG metrics) are optional but improve
+similarity quality. COUG features should be left blank until 2026 scoring
+provenance is reliable.
+
+Position group labels are normalized automatically. Wyscout position strings,
+shorthand (CB, LW, CDM), and plain English (Center Back, Winger) are all
+accepted.
+
+### Key docs
+- [Player similarity product spec](../docs/analytics/recruiting/player_similarity_product_spec.md)
+- [Recruiting README](../docs/analytics/recruiting/README.md)
+- [Readiness report](outputs/reports/recruiting/2026/recruiting_readiness_report.md)
+
+---
+
+## Config Files
+
+| Path | Purpose |
+|------|---------|
+| `configs/organizations/cofc_recruiting.json` | Position groups, feature weights, similarity method |
+| `pipeline/config/recruiting_player_profile_schema.csv` | Player profile column definitions |
+| `pipeline/config/wyscout_peak_normalization.csv` | Wyscout label → COUG metric mapping |
+| `configs/seasons/cofc_2026.json` | 2026 season config |
+| `configs/organizations/cofc.json` | Org-level config |
+
+---
+
+## Development Notes
+
+Raw vendor files, parsed CSVs, and generated outputs are gitignored. Only
+code, configs, docs, schedules, manifests, and curated Markdown reports
+belong in Git.
+
+Before committing:
+```bash
+git status --short
+```
+
+See [repo hygiene doc](../docs/analytics/repo_hygiene.md) for the full policy.
