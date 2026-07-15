@@ -143,6 +143,11 @@ Expected fresh-clone behavior:
 2. Add an explicit season selector or config-driven active season so the app
    can show 2025 calibration data without accidentally presenting it as current
    coach-facing output.
+3. Build a private staff surface for scouting and player development. React /
+   FastAPI is fine, but Streamlit can be revived if coaches strongly prefer it.
+4. Avoid maintaining the same private workflow in both React and Streamlit.
+5. If Streamlit is revived, add a tested `streamlit_app.py` and keep shared
+   Supabase/query logic in one maintained module.
 
 ## Commit Hygiene
 
