@@ -11,6 +11,28 @@ const T = {
   success: '#166534',
 };
 
+const UPCOMING_MATCHES_2026 = [
+  { id: '2026-08-07_wofford', date: '2026-08-07', opponent: 'Wofford', short: 'WOF', homeAway: 'A', competition: 'Exhibition', conference: false, venue: 'Spartanburg' },
+  { id: '2026-08-10_usc_lancaster', date: '2026-08-10', opponent: 'USC Lancaster', short: 'USCL', homeAway: 'H', competition: 'Exhibition', conference: false, venue: 'Ralph Lundy Field' },
+  { id: '2026-08-14_jacksonville', date: '2026-08-14', opponent: 'Jacksonville', short: 'JAX', homeAway: 'A', competition: 'Exhibition', conference: false, venue: 'Jacksonville' },
+  { id: '2026-08-20_davidson', date: '2026-08-20', opponent: 'Davidson', short: 'Davidson', homeAway: 'H', competition: 'Non-Conference', conference: false, venue: 'Ralph Lundy Field' },
+  { id: '2026-08-23_florida_gulf_coast', date: '2026-08-23', opponent: 'Florida Gulf Coast', short: 'FGCU', homeAway: 'H', competition: 'Non-Conference', conference: false, venue: 'Ralph Lundy Field' },
+  { id: '2026-08-28_campbell', date: '2026-08-28', opponent: 'Campbell', short: 'Campbell', homeAway: 'H', competition: 'CAA', conference: true, venue: 'Ralph Lundy Field' },
+  { id: '2026-09-05_william_mary', date: '2026-09-05', opponent: 'William & Mary', short: 'W&M', homeAway: 'A', competition: 'CAA', conference: true, venue: 'Williamsburg' },
+  { id: '2026-09-08_winthrop', date: '2026-09-08', opponent: 'Winthrop', short: 'Winthrop', homeAway: 'H', competition: 'Non-Conference', conference: false, venue: 'Ralph Lundy Field' },
+  { id: '2026-09-12_usc_upstate', date: '2026-09-12', opponent: 'USC Upstate', short: 'USC Upstate', homeAway: 'A', competition: 'Non-Conference', conference: false, venue: 'Spartanburg' },
+  { id: '2026-09-15_south_carolina', date: '2026-09-15', opponent: 'South Carolina', short: 'South Carolina', homeAway: 'A', competition: 'Non-Conference', conference: false, venue: 'Columbia' },
+  { id: '2026-09-19_elon', date: '2026-09-19', opponent: 'Elon', short: 'Elon', homeAway: 'A', competition: 'CAA', conference: true, venue: 'Elon' },
+  { id: '2026-09-27_uncw', date: '2026-09-27', opponent: 'UNCW', short: 'UNCW', homeAway: 'H', competition: 'CAA', conference: true, venue: 'Ralph Lundy Field' },
+  { id: '2026-10-03_campbell', date: '2026-10-03', opponent: 'Campbell', short: 'Campbell', homeAway: 'A', competition: 'CAA', conference: true, venue: 'Buies Creek' },
+  { id: '2026-10-06_furman', date: '2026-10-06', opponent: 'Furman', short: 'Furman', homeAway: 'H', competition: 'Non-Conference', conference: false, venue: 'Ralph Lundy Field' },
+  { id: '2026-10-10_elon', date: '2026-10-10', opponent: 'Elon', short: 'Elon', homeAway: 'H', competition: 'CAA', conference: true, venue: 'Ralph Lundy Field' },
+  { id: '2026-10-13_north_florida', date: '2026-10-13', opponent: 'North Florida', short: 'North Florida', homeAway: 'A', competition: 'Non-Conference', conference: false, venue: 'Jacksonville' },
+  { id: '2026-10-17_william_mary', date: '2026-10-17', opponent: 'William & Mary', short: 'W&M', homeAway: 'H', competition: 'CAA', conference: true, venue: 'Ralph Lundy Field' },
+  { id: '2026-10-24_uncw', date: '2026-10-24', opponent: 'UNCW', short: 'UNCW', homeAway: 'A', competition: 'CAA', conference: true, venue: 'Wilmington' },
+  { id: '2026-10-30_mercer', date: '2026-10-30', opponent: 'Mercer', short: 'Mercer', homeAway: 'A', competition: 'Non-Conference', conference: false, venue: 'Macon' },
+];
+
 export default function StaffPortal() {
   return (
     <StaffGate>
@@ -139,31 +161,61 @@ function StaffPlaceholder({ title, body }) {
 }
 
 function PredictionSimulator() {
-  const [inputs, setInputs] = useState({
-    cofcXg: 1.45,
-    oppXg: 1.15,
-    possession: 52,
-    shotEdge: 1,
-    pressEdge: 0,
-    setPieceEdge: 0,
-    home: 0.15,
-  });
+  const [selectedMatchId, setSelectedMatchId] = useState(UPCOMING_MATCHES_2026[0].id);
+  const selectedMatch = UPCOMING_MATCHES_2026.find(match => match.id === selectedMatchId) || UPCOMING_MATCHES_2026[0];
+  const [inputs, setInputs] = useState(() => baselineInputsForMatch(selectedMatch));
 
   const model = useMemo(() => scenarioModel(inputs), [inputs]);
+  const baseline = useMemo(() => baselineInputsForMatch(selectedMatch), [selectedMatch]);
   const probabilityData = [
     { name: 'Win', value: Math.round(model.win * 100) },
     { name: 'Draw', value: Math.round(model.draw * 100) },
     { name: 'Loss', value: Math.round(model.loss * 100) },
   ];
 
+  function chooseMatch(matchId) {
+    const match = UPCOMING_MATCHES_2026.find(item => item.id === matchId) || UPCOMING_MATCHES_2026[0];
+    setSelectedMatchId(match.id);
+    setInputs(baselineInputsForMatch(match));
+  }
+
   function update(key, value) {
     setInputs(current => ({ ...current, [key]: Number(value) }));
   }
 
   return (
-    <div style={styles.simulatorGrid}>
-      <div style={styles.card}>
-        <h2 style={{ color: T.garnet, marginTop: 0 }}>Scenario Dials</h2>
+    <div style={{ display: 'grid', gap: '1rem' }}>
+      <div style={styles.matchSelectorCard}>
+        <div>
+          <h2 style={{ color: T.garnet, margin: 0 }}>Match Scenario</h2>
+          <p style={{ ...styles.muted, margin: '0.35rem 0 0' }}>
+            Start from a 2026 schedule baseline, then adjust the dials for lineup, tactical, or opponent assumptions.
+          </p>
+        </div>
+        <select value={selectedMatchId} onChange={e => chooseMatch(e.target.value)} style={styles.select}>
+          {UPCOMING_MATCHES_2026.map(match => (
+            <option key={match.id} value={match.id}>
+              {formatMatchDate(match.date)} - {match.homeAway === 'H' ? 'vs' : 'at'} {match.opponent}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={styles.matchMetaGrid}>
+        <MetaTile label="Opponent" value={selectedMatch.opponent} />
+        <MetaTile label="Date" value={formatMatchDate(selectedMatch.date)} />
+        <MetaTile label="Site" value={selectedMatch.homeAway === 'H' ? 'Home' : 'Away'} />
+        <MetaTile label="Competition" value={selectedMatch.competition} />
+      </div>
+
+      <div style={styles.simulatorGrid}>
+        <div style={styles.card}>
+          <div style={styles.dialCardHeader}>
+            <h2 style={{ color: T.garnet, margin: 0 }}>Scenario Dials</h2>
+            <button type="button" onClick={() => setInputs(baseline)} style={styles.resetButton}>
+              Reset baseline
+            </button>
+          </div>
         <Dial label="CofC xG" value={inputs.cofcXg} min={0.2} max={3.5} step={0.05} onChange={v => update('cofcXg', v)} />
         <Dial label="Opponent xG" value={inputs.oppXg} min={0.2} max={3.5} step={0.05} onChange={v => update('oppXg', v)} />
         <Dial label="Possession %" value={inputs.possession} min={35} max={65} step={1} onChange={v => update('possession', v)} />
@@ -212,10 +264,20 @@ function PredictionSimulator() {
             ))}
           </div>
           <p style={styles.note}>
-            Prototype model: Poisson scoreline simulation adjusted by scenario dials. Use for coaching discussion, not final match odds.
+            Prototype model: Poisson scoreline simulation seeded from schedule context and adjusted by scenario dials. Use for coaching discussion, not final match odds.
           </p>
         </div>
       </div>
+    </div>
+    </div>
+  );
+}
+
+function MetaTile({ label, value }) {
+  return (
+    <div style={styles.metaTile}>
+      <div style={styles.metaLabel}>{label}</div>
+      <div style={styles.metaValue}>{value}</div>
     </div>
   );
 }
@@ -241,6 +303,57 @@ function ProbabilityTile({ label, value, tone }) {
       <div style={{ ...styles.probabilityValue, color: fg }}>{Math.round(value * 100)}%</div>
     </div>
   );
+}
+
+function baselineInputsForMatch(match) {
+  const isHome = match.homeAway === 'H';
+  const isConference = Boolean(match.conference);
+  const isExhibition = match.competition === 'Exhibition';
+  const opponentStrength = opponentStrengthAdjustment(match.short || match.opponent);
+
+  return {
+    cofcXg: roundDial(1.42 + (isHome ? 0.12 : -0.08) - opponentStrength * 0.12 + (isExhibition ? 0.08 : 0)),
+    oppXg: roundDial(1.18 + (isHome ? -0.08 : 0.12) + opponentStrength * 0.16 - (isExhibition ? 0.05 : 0)),
+    possession: Math.round(51 + (isHome ? 2 : -1) - opponentStrength * 2),
+    shotEdge: Math.round((isHome ? 2 : 0) - opponentStrength * 2),
+    pressEdge: isConference ? 1 : 0,
+    setPieceEdge: isHome ? 1 : 0,
+    home: isHome ? 0.15 : -0.05,
+  };
+}
+
+function opponentStrengthAdjustment(opponentKey) {
+  const key = String(opponentKey).toLowerCase();
+  const known = {
+    campbell: 0.35,
+    'w&m': 0.3,
+    elon: 0.25,
+    uncw: 0.25,
+    'south carolina': 0.45,
+    'florida gulf coast': 0.2,
+    davidson: 0.15,
+    jacksonville: 0.1,
+    mercer: 0.1,
+    furman: 0.05,
+    wofford: 0,
+    winthrop: 0,
+    'north florida': 0,
+    'usc upstate': -0.05,
+    'usc lancaster': -0.35,
+  };
+  return known[key] ?? 0;
+}
+
+function formatMatchDate(dateText) {
+  const [year, month, day] = dateText.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function roundDial(value) {
+  return Number(value.toFixed(2));
 }
 
 function scenarioModel(inputs) {
@@ -394,10 +507,69 @@ const styles = {
     background: '#fff7ed',
     color: T.garnet,
   },
+  matchSelectorCard: {
+    background: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 8,
+    padding: '1.25rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    display: 'grid',
+    gridTemplateColumns: 'minmax(260px, 1fr) minmax(260px, 420px)',
+    gap: '1rem',
+    alignItems: 'center',
+  },
+  select: {
+    width: '100%',
+    padding: '0.75rem',
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    background: '#fff',
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  matchMetaGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))',
+    gap: '0.75rem',
+  },
+  metaTile: {
+    background: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 8,
+    padding: '0.85rem 1rem',
+  },
+  metaLabel: {
+    color: '#6b7280',
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  metaValue: {
+    color: '#111827',
+    fontSize: 16,
+    fontWeight: 900,
+    marginTop: 3,
+  },
   simulatorGrid: {
     display: 'grid',
     gridTemplateColumns: 'minmax(280px, 0.9fr) minmax(320px, 1.1fr)',
     gap: '1.25rem',
+  },
+  dialCardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    alignItems: 'center',
+    marginBottom: '1rem',
+  },
+  resetButton: {
+    border: '1px solid #d1d5db',
+    background: '#fff',
+    borderRadius: 6,
+    padding: '0.45rem 0.65rem',
+    cursor: 'pointer',
+    color: '#374151',
+    fontWeight: 800,
   },
   probabilityTiles: {
     display: 'grid',

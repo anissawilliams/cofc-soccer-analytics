@@ -9,6 +9,7 @@ Outputs:
   recruit_similarity_scores.csv    — recruits ranked by similarity to ideal profile
   recruit_feature_gaps.csv         — per-recruit feature deltas vs ideal profile
   nearest_cofc_comps.csv           — top-N internal comps per recruit
+  recruiting_portal_summary.json   — compact frontend-friendly summary
   shortlist_<position_group>.md    — coach-facing shortlist per position group
 
 When recruit_player_profiles.csv is absent or empty, the script runs in
@@ -176,6 +177,13 @@ def main() -> None:
             top_n=top_n_shortlist,
             internal_only=True,
         )
+        build_portal_summary(
+            similarity_df=similarity_df,
+            comps_df=comps_df,
+            output_dir=output_dir,
+            season=args.season,
+            internal_only=True,
+        )
 
         print(f"Internal-only run complete.")
         print(f"  Eligible internal players : {len(internal_eligible)}")
@@ -220,6 +228,13 @@ def main() -> None:
             output_dir=output_dir,
             season=args.season,
             top_n=top_n_shortlist,
+            internal_only=False,
+        )
+        build_portal_summary(
+            similarity_df=similarity_df,
+            comps_df=comps_df,
+            output_dir=output_dir,
+            season=args.season,
             internal_only=False,
         )
 
@@ -336,6 +351,30 @@ def build_weight_vector(
             n = len(group_cols)
             weight_vec[i] = group_weight / n if n > 0 else 0.0
     return weight_vec
+
+
+def weighted_feature_coverage(
+    feat_row: pd.Series,
+    weight_vec: np.ndarray,
+    all_feature_cols: list[str],
+) -> float:
+    """Return percent of position-weighted feature mass with candidate data."""
+    total_weight = float(weight_vec.sum())
+    if total_weight <= 0:
+        return 0.0
+    available = np.array([not pd.isna(feat_row.get(col)) for col in all_feature_cols], dtype=float)
+    covered_weight = float((weight_vec * available).sum())
+    return round(covered_weight / total_weight * 100, 1)
+
+
+def reliability_status(data_completeness_pct: float, weighted_feature_coverage_pct: float) -> str:
+    """Classify whether a similarity score has enough input coverage to trust."""
+    coverage = min(data_completeness_pct, weighted_feature_coverage_pct)
+    if coverage >= 70:
+        return "ready"
+    if coverage >= 40:
+        return "caution"
+    return "sparse"
 
 
 # ---------------------------------------------------------------------------
@@ -466,6 +505,8 @@ def score_against_ideal(
             feat_row = feats_raw.loc[idx]
             data_completeness = int(feat_row.notna().sum())
             total_features = len(all_feature_cols)
+            weighted_coverage = weighted_feature_coverage(feat_row, weight_vec, all_feature_cols)
+            completeness_pct = round(data_completeness / total_features * 100, 1)
             notes_raw = row.get("notes", "")
             notes = "" if (notes_raw is None or str(notes_raw).strip() in ("", "nan")) else str(notes_raw).strip()
 
@@ -483,7 +524,9 @@ def score_against_ideal(
                 "fit_score": fit_score,
                 "features_with_data": data_completeness,
                 "total_features": total_features,
-                "data_completeness_pct": round(data_completeness / total_features * 100, 1),
+                "data_completeness_pct": completeness_pct,
+                "weighted_feature_coverage_pct": weighted_coverage,
+                "reliability_status": reliability_status(completeness_pct, weighted_coverage),
                 "notes": notes,
             })
 
@@ -619,6 +662,112 @@ def compute_internal_comps(
                 })
 
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Portal summary
+# ---------------------------------------------------------------------------
+
+def build_portal_summary(
+    similarity_df: pd.DataFrame,
+    comps_df: pd.DataFrame,
+    output_dir: Path,
+    season: str,
+    internal_only: bool,
+) -> None:
+    """Write a compact JSON summary that the Staff portal can consume directly."""
+    payload = {
+        "season": str(season),
+        "mode": "internal_only" if internal_only else "recruit",
+        "total_players": int(len(similarity_df)),
+        "position_groups": [],
+        "players": [],
+    }
+    if similarity_df.empty:
+        out_path = output_dir / "recruiting_portal_summary.json"
+        out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(f"  Wrote portal summary: {out_path.name}")
+        return
+
+    for pg, group in similarity_df.groupby("position_group", sort=True):
+        reliability_counts = {
+            str(key): int(value)
+            for key, value in group["reliability_status"].value_counts().sort_index().items()
+        }
+        payload["position_groups"].append({
+            "position_group": str(pg),
+            "players": int(len(group)),
+            "average_fit_score": round(float(group["fit_score"].mean()), 1),
+            "average_data_completeness_pct": round(float(group["data_completeness_pct"].mean()), 1),
+            "average_weighted_feature_coverage_pct": round(
+                float(group["weighted_feature_coverage_pct"].mean()),
+                1,
+            ),
+            "reliability_counts": reliability_counts,
+        })
+
+    comps_by_player: dict[str, list[dict[str, object]]] = {}
+    if not comps_df.empty:
+        for player_id, group in comps_df.groupby("player_id", sort=False):
+            comps_by_player[str(player_id)] = [
+                {
+                    "rank": int(row["comp_rank"]),
+                    "name": str(row["comp_player_name"]),
+                    "fit_score": float(row["fit_score"]),
+                }
+                for _, row in group.sort_values("comp_rank").head(3).iterrows()
+            ]
+
+    player_cols = [
+        "rank_within_group",
+        "position_group",
+        "player_id",
+        "player_name",
+        "team",
+        "season",
+        "minutes",
+        "matches",
+        "primary_position",
+        "fit_score",
+        "data_completeness_pct",
+        "weighted_feature_coverage_pct",
+        "reliability_status",
+        "notes",
+    ]
+    for _, row in similarity_df[player_cols].head(100).iterrows():
+        player_id = str(row["player_id"])
+        payload["players"].append({
+            "rank_within_group": int(row["rank_within_group"]),
+            "position_group": str(row["position_group"]),
+            "player_id": player_id,
+            "player_name": str(row["player_name"]),
+            "team": str(row["team"]),
+            "season": str(row["season"]),
+            "minutes": json_scalar(row["minutes"]),
+            "matches": json_scalar(row["matches"]),
+            "primary_position": str(row["primary_position"]),
+            "fit_score": float(row["fit_score"]),
+            "data_completeness_pct": float(row["data_completeness_pct"]),
+            "weighted_feature_coverage_pct": float(row["weighted_feature_coverage_pct"]),
+            "reliability_status": str(row["reliability_status"]),
+            "nearest_comps": comps_by_player.get(player_id, []),
+            "notes": str(row["notes"]),
+        })
+
+    out_path = output_dir / "recruiting_portal_summary.json"
+    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"  Wrote portal summary: {out_path.name}")
+
+
+def json_scalar(value: object) -> object:
+    """Convert pandas/numpy scalars to JSON-safe primitive values."""
+    if pd.isna(value):
+        return None
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    return value
 
 
 # ---------------------------------------------------------------------------

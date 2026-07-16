@@ -60,7 +60,7 @@ outputs/
 !pipeline/outputs/reports/scouting/
 !pipeline/outputs/reports/scouting/**/*.md
 !pipeline/outputs/reports/recruiting/
-!pipeline/outputs/reports/recruiting/**/*.md
+pipeline/outputs/reports/recruiting/**/*.md
 !pipeline/outputs/reports/score_reconciliation/
 !pipeline/outputs/reports/score_reconciliation/**/*.md
 

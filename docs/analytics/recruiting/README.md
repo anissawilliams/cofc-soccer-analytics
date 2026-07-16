@@ -76,6 +76,7 @@ Outputs to `pipeline/outputs/reports/recruiting/2026/`:
 - `recruit_similarity_scores.csv` — recruits ranked by fit score
 - `recruit_feature_gaps.csv` — per-recruit feature delta vs ideal
 - `nearest_cofc_comps.csv` — top-5 CofC comps per recruit
+- `recruiting_portal_summary.json` — compact Staff portal summary with reliability flags and top comps
 - `shortlist_<position_group>.md` — coach-facing shortlist per position group
 
 ## Why This Counts as ML
