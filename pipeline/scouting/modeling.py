@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, recall_score
 from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler
 
@@ -66,9 +66,88 @@ def evaluate_logistic_loo(
         "labels": labels,
         "accuracy": float(accuracy_score(actuals, predictions)),
         "log_loss": float(_negative_log_likelihood(actuals, probability_array, labels)),
+        "ranked_probability_score": float(ranked_probability_score(actuals, probability_array, labels)),
+        "draw_recall": float(_class_recall(actuals, predictions, "D")),
+        "per_class_recall": _per_class_recall(actuals, predictions, labels),
         "confusion_matrix": _confusion_matrix_dict(actuals, predictions, labels),
     }
     return metrics, prediction_frame
+
+
+def evaluate_majority_baseline(
+    y: pd.Series,
+    labels: list[str],
+) -> dict[str, Any]:
+    """Evaluate a simple majority-class baseline against the observed outcomes."""
+    actuals = [str(value) for value in y.tolist()]
+    counts = y.value_counts(normalize=True)
+    probabilities = np.array([
+        [float(counts.get(label, 0.0)) for label in labels]
+        for _ in actuals
+    ])
+    predicted_label = str(y.value_counts().idxmax())
+    predictions = [predicted_label for _ in actuals]
+    return {
+        "model_type": "majority_class_prior",
+        "n_matches": int(len(y)),
+        "predicted_label": predicted_label,
+        "accuracy": float(accuracy_score(actuals, predictions)),
+        "log_loss": float(_negative_log_likelihood(actuals, probabilities, labels)),
+        "ranked_probability_score": float(ranked_probability_score(actuals, probabilities, labels)),
+        "draw_recall": float(_class_recall(actuals, predictions, "D")),
+        "per_class_recall": _per_class_recall(actuals, predictions, labels),
+    }
+
+
+def confusion_matrix_frame(
+    actuals: list[str] | pd.Series,
+    predictions: list[str] | pd.Series,
+    labels: list[str],
+) -> pd.DataFrame:
+    """Return a long-form confusion matrix for CSV reporting."""
+    matrix = confusion_matrix(actuals, predictions, labels=labels)
+    rows = []
+    for actual_index, actual_label in enumerate(labels):
+        for predicted_index, predicted_label in enumerate(labels):
+            rows.append({
+                "actual": actual_label,
+                "predicted": predicted_label,
+                "count": int(matrix[actual_index, predicted_index]),
+            })
+    return pd.DataFrame(rows)
+
+
+def calibration_frame(
+    predictions: pd.DataFrame,
+    labels: list[str],
+    bins: int = 5,
+) -> pd.DataFrame:
+    """Summarize whether predicted probabilities align with observed outcomes."""
+    rows = []
+    edges = np.linspace(0, 1, bins + 1)
+    for label in labels:
+        prob_col = f"prob_{label}"
+        if prob_col not in predictions.columns:
+            continue
+        df = predictions[["actual", prob_col]].copy()
+        df["probability"] = pd.to_numeric(df[prob_col], errors="coerce")
+        df["observed"] = df["actual"].eq(label).astype(float)
+        df["bin"] = pd.cut(
+            df["probability"],
+            bins=edges,
+            include_lowest=True,
+            duplicates="drop",
+        )
+        for interval, group in df.groupby("bin", observed=True):
+            rows.append({
+                "label": label,
+                "probability_bin": str(interval),
+                "n": int(len(group)),
+                "mean_predicted_probability": float(group["probability"].mean()),
+                "observed_rate": float(group["observed"].mean()),
+                "calibration_error": float(group["observed"].mean() - group["probability"].mean()),
+            })
+    return pd.DataFrame(rows)
 
 
 def fit_feature_importance(
@@ -99,6 +178,23 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
         handle.write("\n")
 
 
+def ranked_probability_score(
+    actuals: list[str],
+    probabilities: np.ndarray,
+    labels: list[str],
+) -> float:
+    """Compute RPS for ordered win/draw/loss probability forecasts."""
+    label_to_index = {label: index for index, label in enumerate(labels)}
+    scores = []
+    for row_index, actual in enumerate(actuals):
+        observed = np.zeros(len(labels))
+        observed[label_to_index[actual]] = 1.0
+        forecast_cdf = np.cumsum(probabilities[row_index])
+        observed_cdf = np.cumsum(observed)
+        scores.append(np.mean((forecast_cdf[:-1] - observed_cdf[:-1]) ** 2))
+    return float(np.mean(scores))
+
+
 def _aligned_probability_row(
     model: LogisticRegression,
     X_test_scaled: np.ndarray,
@@ -126,6 +222,27 @@ def _confusion_matrix_dict(
             for predicted_index, predicted_label in enumerate(labels)
         }
         for actual_index, actual_label in enumerate(labels)
+    }
+
+
+def _class_recall(
+    actuals: list[str],
+    predictions: list[str],
+    label: str,
+) -> float:
+    if label not in set(actuals):
+        return 0.0
+    return float(recall_score(actuals, predictions, labels=[label], average="macro", zero_division=0))
+
+
+def _per_class_recall(
+    actuals: list[str],
+    predictions: list[str],
+    labels: list[str],
+) -> dict[str, float]:
+    return {
+        label: _class_recall(actuals, predictions, label)
+        for label in labels
     }
 
 

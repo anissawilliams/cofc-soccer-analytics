@@ -42,6 +42,10 @@ seed opposition evidence:
 
 - `docs/analytics/scouting/opponent_pdf_seed_data.md`
 
+For the predictive modeling source plan and opponent-history reconciliation path:
+
+- `docs/analytics/scouting/predictive_modeling_source_plan.md`
+
 It reads organization and season config from:
 
 - `configs/organizations/cofc.json`

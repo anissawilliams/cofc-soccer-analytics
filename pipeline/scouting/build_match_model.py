@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
+import pandas as pd
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -16,6 +18,9 @@ from pipeline.scouting.features import (
     load_wyscout_match_stats,
 )
 from pipeline.scouting.modeling import (
+    calibration_frame,
+    confusion_matrix_frame,
+    evaluate_majority_baseline,
     evaluate_logistic_loo,
     fit_feature_importance,
     write_json,
@@ -53,6 +58,7 @@ def main() -> None:
     raw_matches = load_wyscout_match_stats(match_stats_path, config.org["team_name"])
     features = build_match_features(raw_matches)
     X, y = feature_matrix(features, feature_columns)
+    feature_coverage = _feature_coverage_frame(features, feature_columns)
 
     metrics, predictions = evaluate_logistic_loo(
         X=X,
@@ -60,10 +66,12 @@ def main() -> None:
         labels=labels,
         random_state=random_state,
     )
+    baseline_metrics = evaluate_majority_baseline(y, labels)
     minimum_recommended = int(model_config.get("minimum_recommended_matches", 30))
     metrics["small_sample_warning"] = len(y) < minimum_recommended
     metrics["minimum_recommended_matches"] = minimum_recommended
     metrics["source_file"] = str(match_stats_path.relative_to(config.repo_root))
+    metrics["baseline_majority_class"] = baseline_metrics
 
     predictions = predictions.join(
         features.loc[predictions.index, ["date", "match", "opponent"]]
@@ -78,26 +86,43 @@ def main() -> None:
         n_simulations=args.n_simulations,
         random_state=random_state,
     )
+    confusion = confusion_matrix_frame(predictions["actual"], predictions["predicted"], labels)
+    calibration = calibration_frame(predictions, labels)
 
     predictions_path = model_dir / "match_model_predictions.csv"
+    feature_matrix_path = model_dir / "match_feature_matrix.csv"
+    feature_coverage_path = model_dir / "match_feature_coverage.csv"
     importance_path = model_dir / "match_model_feature_importance.csv"
     metrics_path = model_dir / "match_model_metrics.json"
     simulation_path = model_dir / "match_simulation_backtest.csv"
+    confusion_path = model_dir / "match_model_confusion_matrix.csv"
+    calibration_path = model_dir / "match_model_calibration.csv"
+    baseline_path = model_dir / "match_model_baselines.json"
     summary_path = model_dir / "match_model_summary.md"
 
     predictions.to_csv(predictions_path, index=False)
+    features.to_csv(feature_matrix_path, index=False)
+    feature_coverage.to_csv(feature_coverage_path, index=False)
     importance.to_csv(importance_path, index=False)
     simulation.to_csv(simulation_path, index=False)
+    confusion.to_csv(confusion_path, index=False)
+    calibration.to_csv(calibration_path, index=False)
     write_json(metrics_path, metrics)
+    write_json(baseline_path, {"majority_class": baseline_metrics})
     summary_path.write_text(
         _build_summary_markdown(
             config=config,
             n_matches=len(y),
             metrics=metrics,
             predictions_path=predictions_path,
+            feature_matrix_path=feature_matrix_path,
+            feature_coverage_path=feature_coverage_path,
             importance_path=importance_path,
             metrics_path=metrics_path,
             simulation_path=simulation_path,
+            confusion_path=confusion_path,
+            calibration_path=calibration_path,
+            baseline_path=baseline_path,
         ),
         encoding="utf-8",
     )
@@ -106,6 +131,7 @@ def main() -> None:
     print(f"Matches: {len(y)}")
     print(f"LOO accuracy: {metrics['accuracy']:.3f}")
     print(f"LOO log loss: {metrics['log_loss']:.3f}")
+    print(f"LOO RPS: {metrics['ranked_probability_score']:.3f}")
     print(f"Outputs: {model_dir}")
 
 
@@ -114,9 +140,14 @@ def _build_summary_markdown(
     n_matches: int,
     metrics: dict,
     predictions_path: Path,
+    feature_matrix_path: Path,
+    feature_coverage_path: Path,
     importance_path: Path,
     metrics_path: Path,
     simulation_path: Path,
+    confusion_path: Path,
+    calibration_path: Path,
+    baseline_path: Path,
 ) -> str:
     warning = ""
     if metrics["small_sample_warning"]:
@@ -141,14 +172,31 @@ Matches: {n_matches}
 
 - Accuracy: {metrics["accuracy"]:.3f}
 - Log loss: {metrics["log_loss"]:.3f}
+- Ranked probability score: {metrics["ranked_probability_score"]:.3f}
+- Draw recall: {metrics["draw_recall"]:.3f}
+- Majority baseline accuracy: {metrics["baseline_majority_class"]["accuracy"]:.3f}
+- Majority baseline RPS: {metrics["baseline_majority_class"]["ranked_probability_score"]:.3f}
 - Labels: {", ".join(metrics["labels"])}
 
 ## Outputs
 
 - Predictions: `{rel(predictions_path)}`
+- Feature matrix: `{rel(feature_matrix_path)}`
+- Feature coverage: `{rel(feature_coverage_path)}`
 - Feature importance: `{rel(importance_path)}`
 - Metrics JSON: `{rel(metrics_path)}`
+- Baseline metrics: `{rel(baseline_path)}`
+- Confusion matrix: `{rel(confusion_path)}`
+- Calibration summary: `{rel(calibration_path)}`
 - Poisson simulation backtest: `{rel(simulation_path)}`
+
+## Feature Matrix Notes
+
+The feature matrix includes rolling momentum scaffold columns. CofC rolling
+features are useful for inspection now, but opponent rolling features remain
+sparse until opponent historical match data is added. These rolling columns are
+therefore generated and coverage-reported, but not yet included in the active
+model feature config.
 
 ## Notes
 
@@ -157,6 +205,47 @@ COUG Table scoring: the COUG Table remains a coach-defined evaluation framework,
 while this model is used for outcome prediction, tactical scouting, feature
 importance, and simulation.
 """
+
+
+def _feature_coverage_frame(features, model_feature_columns: list[str]):
+    id_columns = {"date", "match", "competition", "team_cofc", "opponent", "result"}
+    rows = []
+    total = len(features)
+    for column in features.columns:
+        if column in id_columns:
+            continue
+        non_null = int(features[column].notna().sum())
+        rows.append(
+            {
+                "feature": column,
+                "non_null_rows": non_null,
+                "total_rows": int(total),
+                "coverage_pct": round(non_null / total * 100, 1) if total else 0.0,
+                "used_in_current_model": column in model_feature_columns,
+                "feature_family": _feature_family(column),
+            }
+        )
+    return (
+        pd.DataFrame(rows)
+        .sort_values(["used_in_current_model", "feature_family", "coverage_pct", "feature"], ascending=[False, True, False, True])
+        .reset_index(drop=True)
+    )
+
+
+def _feature_family(column: str) -> str:
+    if column.startswith("rolling_") or "_rolling_" in column:
+        return "rolling_momentum"
+    if column.endswith("_diff"):
+        return "differential"
+    if "xg" in column:
+        return "shot_quality"
+    if "shot" in column:
+        return "shooting"
+    if "possession" in column or "pass" in column:
+        return "possession"
+    if "recovery" in column or "duel" in column:
+        return "defending"
+    return "other"
 
 
 if __name__ == "__main__":
