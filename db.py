@@ -9,6 +9,7 @@ If data isn't in Supabase yet, functions return empty lists or None cleanly.
 """
 
 import os
+import re
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -602,3 +603,222 @@ def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
     except Exception as e:
         print(f"[db] get_player_match_history error: {e}")
         return []
+
+
+def get_player_coug_trace(
+    athlete_id: str,
+    season: str = "2025",
+    session_id: str | None = None,
+    weight_version: str = "trial_1",
+) -> dict:
+    """
+    Player-level COUG score explainability.
+    Returns the event rows that contributed to ASET/PEAK/Set Piece scores,
+    joined with metric definitions, weights, source metadata, and category totals.
+    """
+    empty = {
+        "athlete_id": athlete_id,
+        "season": season,
+        "session_id": session_id,
+        "weight_version": weight_version,
+        "player": None,
+        "summary": {
+            "event_count": 0,
+            "weighted_event_count": 0,
+            "aset": 0,
+            "peak": 0,
+            "set_piece": 0,
+            "positional": 0,
+            "load": 0,
+            "team": 0,
+            "total": 0,
+        },
+        "events": [],
+        "score_rules": COUG_SCORE_RULES,
+    }
+
+    try:
+        client = get_client()
+        player = get_player_by_id(athlete_id)
+
+        event_query = client.table("athlete_event").select(
+            "id, raw_value, raw_value_context, collection_method, manually_tagged, "
+            "coach_confirmed, tag_notes, event_time, created_at, session_id, "
+            "session:session_id(id, session_date, season, competition), "
+            "metric:metric_id(id, name, peak_phase, aset_letter, collection_method, "
+            "manual_tag_required, coach_confirmed, notes, category:category_id(code, label)), "
+            "source:source_id(name, platform, source_type, source_priority, file_path)"
+        ).eq("athlete_id", athlete_id)
+
+        if session_id:
+            event_query = event_query.eq("session_id", session_id)
+
+        event_res = event_query.execute()
+        raw_events = event_res.data or []
+
+        metric_ids = sorted({
+            (row.get("metric") or {}).get("id")
+            for row in raw_events
+            if (row.get("metric") or {}).get("id")
+        })
+
+        weights_by_metric = {}
+        if metric_ids:
+            weight_res = client.table("metric_weight").select(
+                "metric_id, weight, weight_type, is_multiplier, version, coach_notes"
+            ).eq("version", weight_version).in_("metric_id", metric_ids).execute()
+            weights_by_metric = {
+                row["metric_id"]: row
+                for row in (weight_res.data or [])
+            }
+
+        summary = empty["summary"].copy()
+        events = []
+
+        for row in raw_events:
+            session = row.get("session") or {}
+            if season and session.get("season") != season:
+                continue
+
+            metric = row.get("metric") or {}
+            category = metric.get("category") or {}
+            metric_id = metric.get("id")
+            weight = weights_by_metric.get(metric_id, {})
+            raw_value = row.get("raw_value")
+            raw_value = 1 if raw_value is None else raw_value
+            weight_value = weight.get("weight")
+            weight_source = "metric_weight" if weight_value is not None else None
+            if weight_value is None:
+                weight_value = _extract_weight_from_notes(metric.get("notes"))
+                weight_source = "metric_definition.notes" if weight_value is not None else None
+            calculated_score = None
+            if weight_value is not None:
+                calculated_score = round(float(raw_value) * float(weight_value), 4)
+
+            bucket = _score_bucket(category.get("code"))
+            if calculated_score is not None:
+                summary[bucket] = round(summary.get(bucket, 0) + calculated_score, 4)
+                summary["total"] = round(summary["total"] + calculated_score, 4)
+                summary["weighted_event_count"] += 1
+
+            summary["event_count"] += 1
+
+            events.append({
+                "event_id": row.get("id"),
+                "session_id": row.get("session_id"),
+                "session_date": session.get("session_date"),
+                "competition": session.get("competition"),
+                "event_time": row.get("event_time"),
+                "metric_name": metric.get("name"),
+                "category_code": category.get("code"),
+                "category_label": category.get("label"),
+                "score_bucket": bucket,
+                "aset_letter": metric.get("aset_letter"),
+                "peak_phase": metric.get("peak_phase"),
+                "raw_value": raw_value,
+                "weight": weight_value,
+                "weight_source": weight_source,
+                "calculated_score": calculated_score,
+                "weight_type": weight.get("weight_type"),
+                "is_multiplier": weight.get("is_multiplier"),
+                "weight_notes": weight.get("coach_notes"),
+                "metric_notes": metric.get("notes"),
+                "collection_method": row.get("collection_method") or metric.get("collection_method"),
+                "manual_tag_required": metric.get("manual_tag_required"),
+                "manually_tagged": row.get("manually_tagged"),
+                "coach_confirmed": row.get("coach_confirmed") or metric.get("coach_confirmed"),
+                "source_name": (row.get("source") or {}).get("name"),
+                "source_platform": (row.get("source") or {}).get("platform"),
+                "source_type": (row.get("source") or {}).get("source_type"),
+                "source_priority": (row.get("source") or {}).get("source_priority"),
+                "source_file_path": (row.get("source") or {}).get("file_path"),
+                "raw_value_context": row.get("raw_value_context") or {},
+                "tag_notes": row.get("tag_notes"),
+            })
+
+        events.sort(key=lambda item: (
+            item.get("session_date") or "",
+            item.get("event_time") if item.get("event_time") is not None else 999999,
+            item.get("metric_name") or "",
+        ), reverse=True)
+
+        return {
+            **empty,
+            "player": _format_player(player),
+            "summary": summary,
+            "events": events,
+        }
+    except Exception as e:
+        print(f"[db] get_player_coug_trace error: {e}")
+        return empty
+
+
+def _score_bucket(category_code: str | None) -> str:
+    return {
+        "ASET_DEF": "aset",
+        "PEAK_OFF": "peak",
+        "SET_PIECE": "set_piece",
+        "POSITIONAL": "positional",
+        "LOAD": "load",
+        "TEAM": "team",
+    }.get(category_code or "", "team")
+
+
+def _format_player(player: dict | None) -> dict | None:
+    if not player:
+        return None
+    return {
+        "athlete_id": player.get("id"),
+        "name": player.get("display_name") or f"{player.get('first_name','')} {player.get('last_name','')}".strip(),
+        "position": player.get("position"),
+        "position_group": player.get("position_group"),
+    }
+
+
+def _extract_weight_from_notes(notes: str | None) -> float | None:
+    if not notes:
+        return None
+    match = re.search(r"Weight\s+(-?\d+(?:\.\d+)?)", notes)
+    if not match:
+        return None
+    return float(match.group(1))
+
+
+COUG_SCORE_RULES = [
+    {
+        "bucket": "ASET",
+        "label": "All in, Sprint, Engage, Trust",
+        "events": [
+            "Possession Regain",
+            "Successful Counter Press (<5s)",
+            "Block in Box",
+            "Clearance from Danger",
+            "Concede Goal (on field)",
+        ],
+    },
+    {
+        "bucket": "PEAK",
+        "label": "Punish, Establish, Advance, Kill",
+        "events": [
+            "Punish Action after Regain",
+            "Establishing Possession",
+            "Advance",
+            "Goal (scorer)",
+            "Goal (on field)",
+            "Assist",
+        ],
+    },
+    {
+        "bucket": "Set Piece",
+        "label": "Restart-specific credit and penalties",
+        "events": [
+            "Win 1st Header (offensive)",
+            "Win 1st Header (defensive)",
+            "Set Piece Goal (1st phase)",
+            "Set Piece Goal (2nd phase)",
+            "Penalty Save",
+            "Freekick Save/Block",
+            "Concede from Set Piece (on field)",
+        ],
+    },
+]

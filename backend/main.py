@@ -219,3 +219,19 @@ def get_coug_leaderboard_with_minutes(season: str):
 def get_player_match_history(athlete_id: str, season: str = "2025"):
     """Per-match score + minutes history for a single player."""
     return db.get_player_match_history(athlete_id, season)
+
+
+@app.get("/api/player-coug-trace/{athlete_id}")
+def get_player_coug_trace(
+    athlete_id: str,
+    season: str = "2025",
+    session_id: str | None = None,
+    weight_version: str = "trial_1",
+):
+    """Player-level COUG event ledger with scoring weights and source traceability."""
+    return db.get_player_coug_trace(
+        athlete_id=athlete_id,
+        season=season,
+        session_id=session_id,
+        weight_version=weight_version,
+    )
