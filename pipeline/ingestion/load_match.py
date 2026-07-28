@@ -24,6 +24,8 @@ Environment variables (or .env file):
     SUPABASE_SERVICE_KEY
 """
 
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -616,6 +618,124 @@ LABEL_TO_METRIC_NAME = {
 WB_CROSS_THRESHOLD = 8
 
 
+def _legacy_wyscout_scoring_rules() -> dict[str, dict]:
+    """Exact pre-migration scoring behavior, used until normalized rules exist."""
+    rules = {}
+    for label, category in WYSCOUT_SCORABLE_LABELS.items():
+        if label in PLUS_ONLY:
+            outcome_rule = "plus_only"
+        elif label in NON_MINUS:
+            outcome_rule = "non_minus"
+        else:
+            outcome_rule = "always_count"
+
+        eligible_positions = []
+        excluded_positions = []
+        minimum_event_count = 1
+        aggregation_rule = "per_event"
+        if label in CB_ONLY:
+            eligible_positions = sorted(CB_POS)
+        elif label in WB_ONLY:
+            eligible_positions = sorted(WB_POS)
+            minimum_event_count = WB_CROSS_THRESHOLD
+            aggregation_rule = "threshold_qualifier"
+        elif label in FWD_ONLY:
+            eligible_positions = sorted(FWD_POS)
+        elif label in GK_ONLY:
+            eligible_positions = sorted(GK_POS)
+        if label in GK_SKIP:
+            excluded_positions = sorted(GK_POS)
+
+        rules[label] = {
+            "source_event_label": label,
+            "metric_name": LABEL_TO_METRIC_NAME.get(label, label),
+            "category": category,
+            "outcome_rule": outcome_rule,
+            "eligible_positions": eligible_positions,
+            "excluded_positions": excluded_positions,
+            "minimum_event_count": minimum_event_count,
+            "aggregation_rule": aggregation_rule,
+            "raw_value_per_event": 1.0,
+        }
+    return rules
+
+
+def load_wyscout_scoring_rules(sb: Client) -> dict[str, dict]:
+    """
+    Load the normalized source-event rules.
+
+    The fallback is intentionally all-or-nothing: an absent or partially
+    migrated table must not produce a hybrid ruleset that changes scoring.
+    """
+    legacy_rules = _legacy_wyscout_scoring_rules()
+    try:
+        rows = sb.table("metric_scoring_rule").select(
+            "source_event_label, outcome_rule, eligible_positions, "
+            "excluded_positions, minimum_event_count, aggregation_rule, "
+            "raw_value_per_event, metric:metric_id(name)"
+        ).eq("source_platform", "wyscout").eq("is_active", True).is_(
+            "effective_to", "null"
+        ).execute().data or []
+    except Exception as exc:
+        log.info(f"  Normalized Wyscout rules unavailable; using legacy-equivalent rules ({exc})")
+        return legacy_rules
+
+    normalized = {}
+    for row in rows:
+        metric = row.get("metric") or {}
+        label = row.get("source_event_label")
+        if not label or not metric.get("name"):
+            continue
+        normalized[label] = {
+            "source_event_label": label,
+            "metric_name": metric["name"],
+            # Preserve the existing raw_value_context value so migration does
+            # not change event identity or create apparent duplicates.
+            "category": legacy_rules.get(label, {}).get("category"),
+            "outcome_rule": row.get("outcome_rule") or "always_count",
+            "eligible_positions": row.get("eligible_positions") or [],
+            "excluded_positions": row.get("excluded_positions") or [],
+            "minimum_event_count": row.get("minimum_event_count") or 1,
+            "aggregation_rule": row.get("aggregation_rule") or "per_event",
+            "raw_value_per_event": row.get("raw_value_per_event") or 1.0,
+        }
+
+    if set(normalized) != set(legacy_rules):
+        missing = sorted(set(legacy_rules) - set(normalized))
+        extra = sorted(set(normalized) - set(legacy_rules))
+        log.warning(
+            "  Normalized Wyscout rules are incomplete; using legacy-equivalent "
+            f"rules. missing={missing}, extra={extra}"
+        )
+        return legacy_rules
+    return normalized
+
+
+def wyscout_event_passes_rule(
+    rule: dict,
+    *,
+    position: str,
+    outcome: str,
+    event_count: int,
+) -> tuple[bool, str | None]:
+    """Evaluate normalized eligibility without calculating a score."""
+    eligible_positions = set(rule.get("eligible_positions") or [])
+    excluded_positions = set(rule.get("excluded_positions") or [])
+    if eligible_positions and position not in eligible_positions:
+        return False, "position"
+    if position in excluded_positions:
+        return False, "position"
+    if event_count < int(rule.get("minimum_event_count") or 1):
+        return False, "threshold"
+
+    outcome_rule = rule.get("outcome_rule") or "always_count"
+    if outcome_rule == "plus_only" and outcome != "Plus":
+        return False, "outcome"
+    if outcome_rule == "non_minus" and outcome == "Minus":
+        return False, "outcome"
+    return True, None
+
+
 def load_wyscout_player_events(
         sb: Client,
         session_id: str,
@@ -642,16 +762,19 @@ def load_wyscout_player_events(
     for a in athlete_rows:
         pos_lookup[a["id"]] = (a.get("position") or "").strip()
 
-    # ── Pre-count crosses per player (for WB 8-cross threshold) ────────────
-    cross_counts = defaultdict(int)
+    scoring_rules = load_wyscout_scoring_rules(sb)
+
+    # ── Pre-count labels per player for threshold-qualified rules ─────────
+    event_counts = defaultdict(int)
     for _, row in players_df.iterrows():
         try:
             labels = ast.literal_eval(str(row["labels"]))
         except Exception:
             continue
-        if "Cross" in labels:
-            norm = normalize_name(str(row["name"]))
-            cross_counts[norm] += 1
+        norm = normalize_name(str(row["name"]))
+        for label in labels:
+            if label in scoring_rules:
+                event_counts[(norm, label)] += 1
 
     # ── Process events ─────────────────────────────────────────────────────
     inserted = 0
@@ -680,41 +803,25 @@ def load_wyscout_player_events(
         event_time = float(row["start"]) if pd.notna(row.get("start")) else None
 
         for label in labels:
-            if label not in WYSCOUT_SCORABLE_LABELS:
+            rule = scoring_rules.get(label)
+            if not rule:
                 continue
 
-            # ── Positional restrictions ────────────────────────────────
-            if label in GK_SKIP and pos in GK_POS:
-                skipped_position += 1
-                continue
-            if label in GK_ONLY and pos not in GK_POS:
-                skipped_position += 1
-                continue
-            if label in CB_ONLY and pos not in CB_POS:
-                skipped_position += 1
-                continue
-            if label in FWD_ONLY and pos not in FWD_POS:
-                skipped_position += 1
-                continue
-            if label in WB_ONLY:
-                if pos not in WB_POS:
-                    skipped_position += 1
-                    continue
-                if cross_counts.get(norm, 0) < WB_CROSS_THRESHOLD:
-                    skipped_position += 1
-                    continue
-
-            # ── Outcome filtering ──────────────────────────────────────
-            if label in PLUS_ONLY and outcome != "Plus":
+            passes, skip_reason = wyscout_event_passes_rule(
+                rule,
+                position=pos,
+                outcome=outcome,
+                event_count=event_counts[(norm, label)],
+            )
+            if not passes and skip_reason == "outcome":
                 skipped_outcome += 1
                 continue
-            if label in NON_MINUS and outcome == "Minus":
-                skipped_outcome += 1
+            if not passes:
+                skipped_position += 1
                 continue
-            # ALWAYS_COUNT: no filtering needed
 
             # ── Resolve metric_id ──────────────────────────────────────
-            metric_name = LABEL_TO_METRIC_NAME.get(label, label)
+            metric_name = rule["metric_name"]
             metric_id = metric_map.get(normalize_name(metric_name))
             if not metric_id:
                 log.warning(f"  Player events: no metric_id for label '{label}' (looked up '{metric_name}')")
@@ -722,13 +829,13 @@ def load_wyscout_player_events(
                 continue
 
             # ── Build payload ──────────────────────────────────────────
-            category = WYSCOUT_SCORABLE_LABELS[label]
+            category = rule.get("category")
             payload = {
                 "athlete_id": athlete_id,
                 "session_id": session_id,
                 "metric_id": metric_id,
                 "source_id": source_id,
-                "raw_value": 1.0,
+                "raw_value": float(rule.get("raw_value_per_event") or 1.0),
                 "collection_method": "auto",
                 "manually_tagged": False,
                 "event_time": event_time,
