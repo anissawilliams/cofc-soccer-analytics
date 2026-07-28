@@ -174,13 +174,17 @@ function PlayerDevelopmentTrace() {
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [loadingTrace, setLoadingTrace] = useState(false);
   const [error, setError] = useState('');
+  const [showScoringReference, setShowScoringReference] = useState(false);
 
   useEffect(() => {
     apiFetch('/api/seasons')
       .then(data => {
-        const available = data.length ? data : ['2025'];
-        setSeasons(available);
-        setSeason(available[0]);
+        const available = Array.isArray(data) ? data : data.seasons || [];
+        const activeSeason = Array.isArray(data) ? available[0] : data.active_season;
+        const normalized = Array.from(new Set([activeSeason, ...available].filter(Boolean)));
+        const seasonsToUse = normalized.length ? normalized : ['2025'];
+        setSeasons(seasonsToUse);
+        setSeason(seasonsToUse[0]);
       })
       .catch(() => setSeasons(['2025']));
   }, []);
@@ -271,11 +275,48 @@ function PlayerDevelopmentTrace() {
             <TraceTile label="Minutes" value={selectedPlayer.minutes_played} suffix="'" />
           </div>
 
-          <div style={styles.traceLayout}>
-            <div style={styles.tracePanel}>
+          <div style={styles.tracePanel}>
+            <div style={styles.panelHeader}>
+              <div>
+                <h3 style={styles.panelTitle}>Category Totals From Events</h3>
+                <span style={styles.panelMeta}>
+                  {trace?.summary?.weighted_event_count ?? 0} weighted rows
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScoringReference(current => !current)}
+                style={styles.referenceButton}
+                aria-expanded={showScoringReference}
+                aria-controls="scoring-reference"
+              >
+                {showScoringReference ? 'Hide scoring reference' : 'Show scoring reference'}
+              </button>
+            </div>
+            <div style={styles.categoryRows}>
+              {['aset', 'peak', 'set_piece', 'positional', 'load', 'team'].map(bucket => (
+                <div key={bucket} style={styles.categoryRow}>
+                  <span>{formatBucket(bucket)}</span>
+                  <strong>{formatScore(trace?.summary?.[bucket] || 0)}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={styles.positionalNote}>
+              <strong>What is Positional?</strong>
+              <span>
+                Role-specific, event-derived metrics assigned through the active metric definitions and weights.
+                This screen reports the official calculated value; it does not calculate a separate positional score.
+              </span>
+            </div>
+          </div>
+
+          {showScoringReference && (
+            <div id="scoring-reference" style={styles.referencePanel}>
               <div style={styles.panelHeader}>
-                <h3 style={styles.panelTitle}>Included Event Families</h3>
-                <span style={styles.panelMeta}>Trial 1 weights</span>
+                <div>
+                  <h3 style={styles.panelTitle}>Included Event Families</h3>
+                  <span style={styles.panelMeta}>Reference from the active scoring configuration</span>
+                </div>
               </div>
               <div style={styles.ruleGrid}>
                 {(trace?.score_rules || []).map(rule => (
@@ -289,24 +330,7 @@ function PlayerDevelopmentTrace() {
                 ))}
               </div>
             </div>
-
-            <div style={styles.tracePanel}>
-              <div style={styles.panelHeader}>
-                <h3 style={styles.panelTitle}>Category Totals From Events</h3>
-                <span style={styles.panelMeta}>
-                  {trace?.summary?.weighted_event_count ?? 0} weighted rows
-                </span>
-              </div>
-              <div style={styles.categoryRows}>
-                {['aset', 'peak', 'set_piece', 'positional', 'load', 'team'].map(bucket => (
-                  <div key={bucket} style={styles.categoryRow}>
-                    <span>{formatBucket(bucket)}</span>
-                    <strong>{formatScore(trace?.summary?.[bucket] || 0)}</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          )}
 
           <div style={styles.tracePanel}>
             <div style={styles.panelHeader}>
@@ -807,12 +831,6 @@ const styles = {
     fontWeight: 900,
     fontVariantNumeric: 'tabular-nums',
   },
-  traceLayout: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(260px, 0.8fr)',
-    gap: '1rem',
-    alignItems: 'start',
-  },
   tracePanel: {
     background: '#fff',
     border: '1px solid #e5e7eb',
@@ -825,6 +843,7 @@ const styles = {
     justifyContent: 'space-between',
     gap: '1rem',
     alignItems: 'center',
+    flexWrap: 'wrap',
     marginBottom: '0.85rem',
   },
   panelTitle: {
@@ -836,6 +855,25 @@ const styles = {
     color: '#6b7280',
     fontSize: 12,
     fontWeight: 800,
+    display: 'block',
+    marginTop: 3,
+  },
+  referenceButton: {
+    border: `1px solid ${T.garnet}`,
+    background: '#fff',
+    color: T.garnet,
+    borderRadius: 6,
+    padding: '0.55rem 0.75rem',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  referencePanel: {
+    background: '#fffcf2',
+    border: '1px solid #eadca4',
+    borderRadius: 8,
+    padding: '1.1rem',
   },
   ruleGrid: {
     display: 'grid',
@@ -879,6 +917,19 @@ const styles = {
     paddingBottom: 8,
     color: '#374151',
     fontSize: 13,
+  },
+  positionalNote: {
+    display: 'grid',
+    gridTemplateColumns: 'max-content minmax(0, 1fr)',
+    gap: '0.65rem',
+    alignItems: 'start',
+    marginTop: '0.9rem',
+    padding: '0.75rem 0.85rem',
+    borderRadius: 6,
+    background: '#f8fafc',
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 1.45,
   },
   eventLedger: {
     display: 'grid',
