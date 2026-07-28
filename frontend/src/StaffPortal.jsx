@@ -171,6 +171,7 @@ function PlayerDevelopmentTrace() {
   const [players, setPlayers] = useState([]);
   const [selectedAthleteId, setSelectedAthleteId] = useState('');
   const [trace, setTrace] = useState(null);
+  const [matchHistory, setMatchHistory] = useState([]);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [loadingTrace, setLoadingTrace] = useState(false);
   const [error, setError] = useState('');
@@ -212,9 +213,13 @@ function PlayerDevelopmentTrace() {
     }
     setLoadingTrace(true);
     setError('');
-    apiFetch(`/api/player-coug-trace/${selectedAthleteId}?season=${season}`)
-      .then(data => {
-        setTrace(data);
+    Promise.all([
+      apiFetch(`/api/player-coug-trace/${selectedAthleteId}?season=${season}`),
+      apiFetch(`/api/player-match-history/${selectedAthleteId}?season=${season}`),
+    ])
+      .then(([traceData, matchData]) => {
+        setTrace(traceData);
+        setMatchHistory(matchData);
         setLoadingTrace(false);
       })
       .catch(e => {
@@ -224,7 +229,10 @@ function PlayerDevelopmentTrace() {
   }, [selectedAthleteId, season]);
 
   const selectedPlayer = players.find(player => player.athlete_id === selectedAthleteId);
-  const matchGroups = useMemo(() => groupEventsByMatch(trace?.events || []), [trace]);
+  const matchGroups = useMemo(
+    () => groupEventsByMatch(trace?.events || [], matchHistory),
+    [trace, matchHistory],
+  );
   const cougTableTotal = Number(selectedPlayer?.total_score || 0);
   const eventLedgerTotal = Number(trace?.summary?.total || 0);
   const rollupDifference = Math.abs(cougTableTotal - eventLedgerTotal);
@@ -448,14 +456,21 @@ function groupEvents(events) {
   }, {});
 }
 
-function groupEventsByMatch(events) {
+function groupEventsByMatch(events, matchHistory = []) {
+  const historyBySession = new Map(
+    matchHistory.filter(match => match.session_id).map(match => [match.session_id, match]),
+  );
+  const historyByDate = new Map(
+    matchHistory.filter(match => match.session_date).map(match => [match.session_date, match]),
+  );
   const matches = new Map();
   events.forEach(event => {
     const sessionId = event.session_id || `undated-${event.session_date || 'unknown'}`;
+    const matchRecord = historyBySession.get(event.session_id) || historyByDate.get(event.session_date);
     if (!matches.has(sessionId)) {
       matches.set(sessionId, {
         sessionId,
-        label: event.competition || 'Match',
+        label: matchRecord?.opponent || event.competition || 'Opponent pending',
         dateLabel: formatMatchDateLabel(event.session_date),
         events: [],
         score: 0,

@@ -585,6 +585,7 @@ def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
             minutes  = mins_off - mins_on
 
             result.append({
+                "session_id":      sid,
                 "session_date":    s.get("session_date"),
                 "opponent":        match.get("opponent", s.get("competition", "Unknown")),
                 "result":          match.get("result"),
