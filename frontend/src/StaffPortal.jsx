@@ -422,7 +422,11 @@ function TraceTile({ label, value, tone, suffix = '' }) {
 }
 
 function EventRow({ event }) {
-  const reviewNeeded = event.manual_tag_required || !event.coach_confirmed || event.weight == null;
+  const reviewStatuses = new Set(['needs_confirmation', 'proxy_review', 'duplicate', 'unreviewed']);
+  const reviewNeeded = event.review_status
+    ? reviewStatuses.has(event.review_status) || event.weight == null
+    : event.manual_tag_required || !event.coach_confirmed || event.weight == null;
+  const explanation = event.coach_explanation || event.weight_notes || event.metric_notes;
   return (
     <div style={styles.eventRow}>
       <div>
@@ -435,8 +439,14 @@ function EventRow({ event }) {
         <div style={styles.eventMeta}>
           {event.session_date || 'No date'} · {formatTime(event.event_time)} · {event.source_platform || event.source_name || 'source pending'} · {event.collection_method || 'method pending'}
         </div>
-        {(event.weight_notes || event.metric_notes) && (
-          <div style={styles.eventNotes}>{event.weight_notes || event.metric_notes}</div>
+        {explanation && (
+          <div style={styles.eventNotes}>{explanation}</div>
+        )}
+        {(event.technical_notes || event.metric_notes || event.weight_notes) && event.coach_explanation && (
+          <details style={styles.technicalDetails}>
+            <summary>Technical details</summary>
+            <div>{event.technical_notes || event.metric_notes || event.weight_notes}</div>
+          </details>
         )}
       </div>
       <div style={styles.eventMath}>
@@ -1129,6 +1139,12 @@ const styles = {
   eventNotes: {
     color: '#4b5563',
     fontSize: 12,
+    lineHeight: 1.35,
+    marginTop: 6,
+  },
+  technicalDetails: {
+    color: '#6b7280',
+    fontSize: 11,
     lineHeight: 1.35,
     marginTop: 6,
   },
