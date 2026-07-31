@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Overwrite existing shell files. Current implementation always rewrites shells.",
+        help="Overwrite existing shell files. By default only missing files are created.",
     )
     return parser.parse_args()
 
@@ -47,10 +47,12 @@ def main() -> None:
         schedule=schedule,
         output_root=output_root,
         org_short_name=config.org["short_name"],
+        force=args.force,
     )
 
     missing_ids = schedule["opponent_team_id"].astype(str).str.strip().eq("").sum()
-    print(f"Built opponent report shells for {config.org['short_name']} {config.season_label}")
+    action = "Rebuilt" if args.force else "Ensured"
+    print(f"{action} opponent report shells for {config.org['short_name']} {config.season_label}")
     print(f"Matches: {len(paths)}")
     print(f"Missing opponent_team_id: {int(missing_ids)}")
     print(f"Output root: {output_root}")
