@@ -426,7 +426,8 @@ function EventRow({ event }) {
   const reviewNeeded = event.review_status
     ? reviewStatuses.has(event.review_status) || event.weight == null
     : event.manual_tag_required || !event.coach_confirmed || event.weight == null;
-  const explanation = event.coach_explanation || event.weight_notes || event.metric_notes;
+  const explanation = event.coach_explanation || formatContributionExplanation(event);
+  const technicalNote = event.technical_notes || event.metric_notes || event.weight_notes;
   return (
     <div style={styles.eventRow}>
       <div>
@@ -437,15 +438,15 @@ function EventRow({ event }) {
           {reviewNeeded && <span style={styles.reviewChip}>Review</span>}
         </div>
         <div style={styles.eventMeta}>
-          {event.session_date || 'No date'} · {formatTime(event.event_time)} · {event.source_platform || event.source_name || 'source pending'} · {event.collection_method || 'method pending'}
+          {event.session_date || 'No date'} · Match time {formatTime(event.event_time)} · {event.source_platform || event.source_name || 'source pending'} · {event.collection_method || 'method pending'}
         </div>
         {explanation && (
           <div style={styles.eventNotes}>{explanation}</div>
         )}
-        {(event.technical_notes || event.metric_notes || event.weight_notes) && event.coach_explanation && (
+        {technicalNote && (
           <details style={styles.technicalDetails}>
             <summary>Technical details</summary>
-            <div>{event.technical_notes || event.metric_notes || event.weight_notes}</div>
+            <div>{technicalNote}</div>
           </details>
         )}
       </div>
@@ -455,6 +456,15 @@ function EventRow({ event }) {
       </div>
     </div>
   );
+}
+
+function formatContributionExplanation(event) {
+  if (event.calculated_score == null || event.weight == null) {
+    return 'Recorded as event evidence; no active scoring contribution was returned.';
+  }
+  const points = formatScore(event.calculated_score);
+  const direction = Number(event.calculated_score) < 0 ? 'reduced the score by' : 'contributed';
+  return `${event.metric_name || 'This event'} ${direction} ${points.replace('-', '')} points.`;
 }
 
 function groupEvents(events) {
