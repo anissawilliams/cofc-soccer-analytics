@@ -406,7 +406,7 @@ def get_seasons() -> list[str]:
         return seasons
     except Exception as e:
         print(f"[db] get_seasons error: {e}")
-        return ["2025"]
+        return []
 
 
 def get_coug_scores_with_minutes(session_id: str) -> list[dict]:

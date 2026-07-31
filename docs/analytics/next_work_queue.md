@@ -58,15 +58,18 @@ Expected fresh-clone behavior:
    - `2025-10-25_william_mary` player-events XML
    - `2025-10-25_william_mary` team-events XML
 
-3. **Source-aware inventory polish**
+3. **Source-aware inventory polish** — completed 2026-07-27
 
-   Add optional inventory columns for `source_file.parse_status`,
-   `source_file.sha256`, and `source_file.storage_path` when `--csv` is used.
+   CSV inventory output now includes JSON maps keyed by source type for
+   `source_file.id`, `parse_status`, `sha256`, and `storage_path`. The compact
+   terminal table remains unchanged.
 
-4. **Loader provenance**
+4. **Loader provenance** — completed 2026-07-27
 
-   When `load_match.py` writes `athlete_event`, pass through
-   `source_file_id` where the exact source file is known.
+   `load_match.py` now attaches the registered Sportscode `source_file_id` to
+   Wyscout player events and backfills that ID onto matching events during
+   idempotent reruns. Derived scored-summary events remain unlinked because
+   they do not have one defensible raw-file source.
 
 5. **Score reconciliation triage**
 
@@ -147,12 +150,22 @@ Expected fresh-clone behavior:
 
 ## Frontend Readiness
 
-1. Before 2026 match reporting goes live, update the frontend COUG Table views
-   to default to the active season (`2026`) instead of historical/calibration
-   season data.
-2. Add an explicit season selector or config-driven active season so the app
-   can show 2025 calibration data without accidentally presenting it as current
-   coach-facing output.
+Completed 2026-07-27:
+
+- The application active season is configured in
+  `configs/organizations/cofc.json`.
+- `/api/seasons` exposes the active season and available historical seasons.
+- The COUG Table defaults to 2026 while retaining its historical season
+  selector.
+- `/api/schedule` reads the season schedule configured under `configs/seasons/`.
+- The staff simulator consumes the schedule API instead of maintaining a
+  duplicate hardcoded match list.
+
+Next:
+
+1. Add a staff-side season selector when multiple schedule seasons need to be
+   browsed there.
+2. Protect staff routes and data server-side before production deployment.
 
 ## Commit Hygiene
 

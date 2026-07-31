@@ -12,4 +12,4 @@ for path in sorted(glob.glob('pipeline/data/outputs/2025/**/*_players.csv', recu
             if m and m.group(2).strip().lower() != row['name'].strip().lower():
                 mismatches += 1
     status = '✅' if mismatches == 0 else f'❌ {mismatches} mismatches'
-    print(f'{status}  {path.split(\"/\")[-1]}  ({total} rows)')
+    print(f"{status}  {path.split('/')[-1]}  ({total} rows)")

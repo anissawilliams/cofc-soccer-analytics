@@ -40,6 +40,7 @@ pipeline/
 
 ### Preflight check — run before publishing to coaches
 ```bash
+.venv/bin/python pipeline/analytics/build_reconciliation_triage.py --season 2025
 .venv/bin/python pipeline/analytics/preflight_check.py --season 2025
 ```
 Exits non-zero if any reconciliation issue is unresolved or unsigned. Write
@@ -113,7 +114,8 @@ Current metrics: 16 matches · LOO accuracy 62.5% · log loss 1.295
 
 ### Model readiness check
 ```bash
-.venv/bin/python pipeline/scouting/build_model_readiness_report.py --org cofc --season 2026
+.venv/bin/python pipeline/scouting/build_model_readiness_report.py \
+  --org cofc --train-season 2025 --target-season 2026
 ```
 
 ### Key docs

@@ -1,16 +1,20 @@
 # Streamlit App Status
 
-Last updated: 2026-07-14
+Last updated: 2026-07-27
 
-This folder is currently a placeholder for a possible private coaching
-dashboard. Coaches liked the Streamlit direction, but there is no active
-`streamlit_app.py` in this repo right now.
+This folder contains Streamlit-specific requirements and notes. A legacy
+coaching dashboard remains at the repository root as `streamlit_app.py`, but it
+is not the recommended surface for new development and has not been validated
+as the current production app.
 
-The active app surface in this repo is:
+The primary app direction in this repo is:
 
 - `backend/` — FastAPI API backed by Supabase
 - `frontend/` — React dashboard and COUG Table views
 - `pipeline/` — ingestion, scoring, scouting, and recruiting workflows
+
+The root `streamlit_app.py` should be treated as a legacy prototype until the
+team explicitly chooses to revive it.
 
 ## Current Recommendation
 
@@ -52,13 +56,14 @@ API routes should also be protected server-side.
 
 ## If Streamlit Is Revived
 
-Before using this folder again:
+Before making Streamlit an active app surface again:
 
-1. Add a real `streamlit_app.py`.
+1. Audit and update the root `streamlit_app.py`.
 2. Move shared Supabase query code into one maintained module.
 3. Avoid duplicating frontend-only COUG Table logic.
-4. Add a README command that has been tested on a fresh clone.
-5. Keep generated reports/data out of Git.
+4. Test and document the run command on a fresh clone.
+5. Add server-side authentication appropriate for staff data.
+6. Keep generated reports/data out of Git.
 
 Until then, use this folder only as a parking place for Streamlit-specific
 requirements or future notes.

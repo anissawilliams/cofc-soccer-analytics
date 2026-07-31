@@ -65,7 +65,13 @@ COUG score reconciliation:
 
 ```bash
 .venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season 2025
+.venv/bin/python pipeline/analytics/build_reconciliation_triage.py --season 2025
+.venv/bin/python pipeline/analytics/preflight_check.py --season 2025
 ```
+
+Run the preflight check before sharing any COUG Table output with coaches. A
+zero exit code means all actionable reconciliation discrepancies are either
+cleared or documented in `pipeline/config/reconciliation_signoffs.csv`.
 
 ## Important Docs
 
@@ -118,7 +124,8 @@ pipeline/scouting/               Schedule QA, match model, opponent shells
 pipeline/outputs/reports/        Generated outputs; selected Markdown may be tracked
 frontend/                        React app
 backend/                         FastAPI/backend experiments
-streamlit/                       Streamlit app, if present locally
+streamlit/                       Legacy Streamlit notes and requirements
+streamlit_app.py                 Legacy coaching dashboard prototype
 schema/                          Database guardrails/migrations
 ```
 

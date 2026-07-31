@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Cell,
   CartesianGrid, Tooltip, ResponsiveContainer,
@@ -10,6 +10,14 @@ const T = {
   goldText: '#8B7500',
   success: '#166534',
 };
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+async function apiFetch(path) {
+  const res = await fetch(`${API}${path}`);
+  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+  return res.json();
+}
 
 const UPCOMING_MATCHES_2026 = [
   { id: '2026-08-07_wofford', date: '2026-08-07', opponent: 'Wofford', short: 'WOF', homeAway: 'A', competition: 'Exhibition', conference: false, venue: 'Spartanburg' },
@@ -136,10 +144,7 @@ function StaffDashboard() {
         />
       )}
       {section === 'development' && (
-        <StaffPlaceholder
-          title="Player Development"
-          body="Private player trends, COUG score explainers, and development targets will live here."
-        />
+        <PlayerDevelopmentTrace />
       )}
       {section === 'recruiting' && (
         <StaffPlaceholder
@@ -158,6 +163,277 @@ function StaffPlaceholder({ title, body }) {
       <p style={{ marginBottom: 0, color: '#4b5563', lineHeight: 1.6 }}>{body}</p>
     </div>
   );
+}
+
+function PlayerDevelopmentTrace() {
+  const [season, setSeason] = useState('2025');
+  const [seasons, setSeasons] = useState(['2025']);
+  const [players, setPlayers] = useState([]);
+  const [selectedAthleteId, setSelectedAthleteId] = useState('');
+  const [trace, setTrace] = useState(null);
+  const [loadingPlayers, setLoadingPlayers] = useState(true);
+  const [loadingTrace, setLoadingTrace] = useState(false);
+  const [error, setError] = useState('');
+  const [showScoringReference, setShowScoringReference] = useState(false);
+
+  useEffect(() => {
+    apiFetch('/api/seasons')
+      .then(data => {
+        const available = Array.isArray(data) ? data : data.seasons || [];
+        const activeSeason = Array.isArray(data) ? available[0] : data.active_season;
+        const normalized = Array.from(new Set([activeSeason, ...available].filter(Boolean)));
+        const seasonsToUse = normalized.length ? normalized : ['2025'];
+        setSeasons(seasonsToUse);
+        setSeason(seasonsToUse[0]);
+      })
+      .catch(() => setSeasons(['2025']));
+  }, []);
+
+  useEffect(() => {
+    if (!season) return;
+    setLoadingPlayers(true);
+    setError('');
+    apiFetch(`/api/coug-leaderboard-with-minutes/${season}`)
+      .then(data => {
+        setPlayers(data);
+        setSelectedAthleteId(current => current || data[0]?.athlete_id || '');
+        setLoadingPlayers(false);
+      })
+      .catch(e => {
+        setError(e.message);
+        setLoadingPlayers(false);
+      });
+  }, [season]);
+
+  useEffect(() => {
+    if (!selectedAthleteId || !season) {
+      setTrace(null);
+      return;
+    }
+    setLoadingTrace(true);
+    setError('');
+    apiFetch(`/api/player-coug-trace/${selectedAthleteId}?season=${season}`)
+      .then(data => {
+        setTrace(data);
+        setLoadingTrace(false);
+      })
+      .catch(e => {
+        setError(e.message);
+        setLoadingTrace(false);
+      });
+  }, [selectedAthleteId, season]);
+
+  const selectedPlayer = players.find(player => player.athlete_id === selectedAthleteId);
+  const eventGroups = useMemo(() => groupEvents(trace?.events || []), [trace]);
+
+  return (
+    <div style={styles.developmentShell}>
+      <div style={styles.developmentHeader}>
+        <div>
+          <h2 style={{ color: T.garnet, margin: 0 }}>Player COUG Trace</h2>
+          <p style={{ ...styles.muted, margin: '0.35rem 0 0' }}>
+            Player conversation prep: what counted, how it was weighted, and where the evidence came from.
+          </p>
+        </div>
+        <div style={styles.traceControls}>
+          <select value={season} onChange={e => {
+            setSeason(e.target.value);
+            setSelectedAthleteId('');
+          }} style={styles.select}>
+            {seasons.map(item => <option key={item} value={item}>{item} Season</option>)}
+          </select>
+          <select
+            value={selectedAthleteId}
+            onChange={e => setSelectedAthleteId(e.target.value)}
+            style={styles.select}
+            disabled={loadingPlayers || players.length === 0}
+          >
+            {players.length === 0 && <option value="">No players</option>}
+            {players.map(player => (
+              <option key={player.athlete_id} value={player.athlete_id}>
+                {player.name} - {player.position || 'POS'}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {error && <div style={styles.errorBanner}>{error}</div>}
+
+      {loadingPlayers || loadingTrace ? (
+        <div style={styles.card}>Loading player trace...</div>
+      ) : !selectedPlayer ? (
+        <div style={styles.card}>No COUG scores are available for this season yet.</div>
+      ) : (
+        <>
+          <div style={styles.traceSummaryGrid}>
+            <TraceTile label="Total" value={selectedPlayer.total_score} tone="total" />
+            <TraceTile label="ASET" value={selectedPlayer.aset_score} tone="aset" />
+            <TraceTile label="PEAK" value={selectedPlayer.peak_score} tone="peak" />
+            <TraceTile label="Set Piece" value={selectedPlayer.set_piece_score} />
+            <TraceTile label="Events" value={trace?.summary?.event_count ?? 0} />
+            <TraceTile label="Minutes" value={selectedPlayer.minutes_played} suffix="'" />
+          </div>
+
+          <div style={styles.tracePanel}>
+            <div style={styles.panelHeader}>
+              <div>
+                <h3 style={styles.panelTitle}>Category Totals From Events</h3>
+                <span style={styles.panelMeta}>
+                  {trace?.summary?.weighted_event_count ?? 0} weighted rows
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScoringReference(current => !current)}
+                style={styles.referenceButton}
+                aria-expanded={showScoringReference}
+                aria-controls="scoring-reference"
+              >
+                {showScoringReference ? 'Hide scoring reference' : 'Show scoring reference'}
+              </button>
+            </div>
+            <div style={styles.categoryRows}>
+              {['aset', 'peak', 'set_piece', 'positional', 'load', 'team'].map(bucket => (
+                <div key={bucket} style={styles.categoryRow}>
+                  <span>{formatBucket(bucket)}</span>
+                  <strong>{formatScore(trace?.summary?.[bucket] || 0)}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={styles.positionalNote}>
+              <strong>What is Positional?</strong>
+              <span>
+                Role-specific, event-derived metrics assigned through the active metric definitions and weights.
+                This screen reports the official calculated value; it does not calculate a separate positional score.
+              </span>
+            </div>
+          </div>
+
+          {showScoringReference && (
+            <div id="scoring-reference" style={styles.referencePanel}>
+              <div style={styles.panelHeader}>
+                <div>
+                  <h3 style={styles.panelTitle}>Included Event Families</h3>
+                  <span style={styles.panelMeta}>Reference from the active scoring configuration</span>
+                </div>
+              </div>
+              <div style={styles.ruleGrid}>
+                {(trace?.score_rules || []).map(rule => (
+                  <div key={rule.bucket} style={styles.ruleBlock}>
+                    <div style={{ ...styles.ruleBucket, color: bucketColor(rule.bucket) }}>{rule.bucket}</div>
+                    <div style={styles.ruleLabel}>{rule.label}</div>
+                    <div style={styles.ruleEvents}>
+                      {rule.events.map(eventName => <span key={eventName}>{eventName}</span>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={styles.tracePanel}>
+            <div style={styles.panelHeader}>
+              <h3 style={styles.panelTitle}>Event Ledger</h3>
+              <span style={styles.panelMeta}>Raw value x weight = score</span>
+            </div>
+
+            {(trace?.events || []).length === 0 ? (
+              <p style={styles.muted}>
+                No player-level event rows are loaded yet. The panel is ready for 2026 once athlete_event provenance is populated.
+              </p>
+            ) : (
+              <div style={styles.eventLedger}>
+                {Object.entries(eventGroups).map(([bucket, events]) => (
+                  <div key={bucket}>
+                    <div style={{ ...styles.ledgerBucket, color: bucketColor(bucket) }}>
+                      {formatBucket(bucket)} ({events.length})
+                    </div>
+                    {events.map(event => <EventRow key={event.event_id} event={event} />)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TraceTile({ label, value, tone, suffix = '' }) {
+  const color = tone === 'aset' ? '#c0263b' : tone === 'peak' ? T.goldText : tone === 'total' ? T.garnet : '#111827';
+  const display = label === 'Minutes' || label === 'Events'
+    ? `${Math.round(value || 0)}${suffix}`
+    : formatScore(value || 0);
+  return (
+    <div style={styles.traceTile}>
+      <div style={styles.traceTileLabel}>{label}</div>
+      <div style={{ ...styles.traceTileValue, color }}>{display}</div>
+    </div>
+  );
+}
+
+function EventRow({ event }) {
+  const reviewNeeded = event.manual_tag_required || !event.coach_confirmed || event.weight == null;
+  return (
+    <div style={styles.eventRow}>
+      <div>
+        <div style={styles.eventTitle}>
+          <span>{event.metric_name}</span>
+          {event.aset_letter && <span style={styles.smallChip}>ASET {event.aset_letter}</span>}
+          {event.peak_phase && <span style={styles.smallChip}>PEAK {event.peak_phase}</span>}
+          {reviewNeeded && <span style={styles.reviewChip}>Review</span>}
+        </div>
+        <div style={styles.eventMeta}>
+          {event.session_date || 'No date'} · {formatTime(event.event_time)} · {event.source_platform || event.source_name || 'source pending'} · {event.collection_method || 'method pending'}
+        </div>
+        {(event.weight_notes || event.metric_notes) && (
+          <div style={styles.eventNotes}>{event.weight_notes || event.metric_notes}</div>
+        )}
+      </div>
+      <div style={styles.eventMath}>
+        <span>{formatScore(event.raw_value)} x {event.weight == null ? '-' : formatScore(event.weight)}</span>
+        <strong>{event.calculated_score == null ? '-' : formatScore(event.calculated_score)}</strong>
+      </div>
+    </div>
+  );
+}
+
+function groupEvents(events) {
+  return events.reduce((groups, event) => {
+    const bucket = event.score_bucket || 'team';
+    groups[bucket] = groups[bucket] || [];
+    groups[bucket].push(event);
+    return groups;
+  }, {});
+}
+
+function bucketColor(bucket) {
+  const key = String(bucket).toLowerCase();
+  if (key.includes('aset')) return '#c0263b';
+  if (key.includes('peak')) return T.goldText;
+  if (key.includes('set')) return '#7c6a3a';
+  return '#374151';
+}
+
+function formatBucket(bucket) {
+  return String(bucket)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function formatScore(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
+  return Number(value).toFixed(2);
+}
+
+function formatTime(seconds) {
+  if (seconds === null || seconds === undefined) return 'time pending';
+  const total = Math.max(0, Math.round(Number(seconds)));
+  const mins = Math.floor(total / 60);
+  const secs = String(total % 60).padStart(2, '0');
+  return `${mins}:${secs}`;
 }
 
 function PredictionSimulator() {
@@ -506,6 +782,218 @@ const styles = {
     border: `2px solid ${T.garnet}`,
     background: '#fff7ed',
     color: T.garnet,
+  },
+  developmentShell: {
+    display: 'grid',
+    gap: '1rem',
+  },
+  developmentHeader: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 520px)',
+    gap: '1rem',
+    alignItems: 'center',
+  },
+  traceControls: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(130px, 0.7fr) minmax(180px, 1.3fr)',
+    gap: '0.75rem',
+  },
+  errorBanner: {
+    background: '#fef2f2',
+    border: '1px solid #fecaca',
+    borderRadius: 6,
+    color: '#991b1b',
+    padding: '0.75rem 1rem',
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  traceSummaryGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(6, minmax(120px, 1fr))',
+    gap: '0.75rem',
+  },
+  traceTile: {
+    background: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 8,
+    padding: '0.85rem 1rem',
+  },
+  traceTileLabel: {
+    color: '#6b7280',
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  traceTileValue: {
+    marginTop: 4,
+    fontSize: 24,
+    fontWeight: 900,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  tracePanel: {
+    background: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 8,
+    padding: '1.1rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+  },
+  panelHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: '0.85rem',
+  },
+  panelTitle: {
+    margin: 0,
+    color: '#111827',
+    fontSize: 16,
+  },
+  panelMeta: {
+    color: '#6b7280',
+    fontSize: 12,
+    fontWeight: 800,
+    display: 'block',
+    marginTop: 3,
+  },
+  referenceButton: {
+    border: `1px solid ${T.garnet}`,
+    background: '#fff',
+    color: T.garnet,
+    borderRadius: 6,
+    padding: '0.55rem 0.75rem',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  referencePanel: {
+    background: '#fffcf2',
+    border: '1px solid #eadca4',
+    borderRadius: 8,
+    padding: '1.1rem',
+  },
+  ruleGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))',
+    gap: '0.75rem',
+  },
+  ruleBlock: {
+    border: '1px solid #e5e7eb',
+    borderRadius: 6,
+    padding: '0.85rem',
+    background: '#fafafa',
+  },
+  ruleBucket: {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 1,
+  },
+  ruleLabel: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 800,
+    marginTop: 3,
+  },
+  ruleEvents: {
+    display: 'grid',
+    gap: 4,
+    marginTop: 9,
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 1.25,
+  },
+  categoryRows: {
+    display: 'grid',
+    gap: 8,
+  },
+  categoryRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    borderBottom: '1px solid #f3f4f6',
+    paddingBottom: 8,
+    color: '#374151',
+    fontSize: 13,
+  },
+  positionalNote: {
+    display: 'grid',
+    gridTemplateColumns: 'max-content minmax(0, 1fr)',
+    gap: '0.65rem',
+    alignItems: 'start',
+    marginTop: '0.9rem',
+    padding: '0.75rem 0.85rem',
+    borderRadius: 6,
+    background: '#f8fafc',
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+  eventLedger: {
+    display: 'grid',
+    gap: '1rem',
+  },
+  ledgerBucket: {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  eventRow: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(220px, 1fr) 116px',
+    gap: '0.75rem',
+    alignItems: 'start',
+    borderTop: '1px solid #f3f4f6',
+    padding: '0.75rem 0',
+  },
+  eventTitle: {
+    display: 'flex',
+    gap: 6,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    color: '#111827',
+    fontWeight: 900,
+    fontSize: 13,
+  },
+  eventMeta: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  eventNotes: {
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 1.35,
+    marginTop: 6,
+  },
+  smallChip: {
+    background: '#f3f4f6',
+    color: '#374151',
+    borderRadius: 4,
+    padding: '2px 5px',
+    fontSize: 10,
+    fontWeight: 900,
+  },
+  reviewChip: {
+    background: '#fffbeb',
+    color: '#92400e',
+    border: '1px solid #fde68a',
+    borderRadius: 4,
+    padding: '2px 5px',
+    fontSize: 10,
+    fontWeight: 900,
+  },
+  eventMath: {
+    display: 'grid',
+    gap: 4,
+    justifyItems: 'end',
+    color: '#6b7280',
+    fontSize: 12,
+    fontVariantNumeric: 'tabular-nums',
   },
   matchSelectorCard: {
     background: '#fff',

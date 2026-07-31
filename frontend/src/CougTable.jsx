@@ -29,6 +29,7 @@ const PEAK_COLOR = "#CFB53B";
 const SP_COLOR   = "#8a7a55";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const CONFIGURED_ACTIVE_SEASON = import.meta.env.VITE_ACTIVE_SEASON || "2026";
 
 async function apiFetch(path) {
   const res = await fetch(`${API}${path}`);
@@ -350,8 +351,8 @@ function PlayerPanel({ player, history }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function CougTable() {
   const [tab, setTab]                   = useState("season");
-  const [season, setSeason]             = useState("2025");
-  const [seasons, setSeasons]           = useState(["2025"]);
+  const [season, setSeason]             = useState(CONFIGURED_ACTIVE_SEASON);
+  const [seasons, setSeasons]           = useState([CONFIGURED_ACTIVE_SEASON]);
   const [matches, setMatches]           = useState([]);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [seasonData, setSeasonData]     = useState([]);
@@ -365,8 +366,20 @@ export default function CougTable() {
 
   useEffect(() => {
     apiFetch("/api/seasons")
-      .then(s => { setSeasons(s); setSeason(s[0] || "2025"); })
-      .catch(() => setSeasons(["2025"]));
+      .then(payload => {
+        // Accept the old array response during rolling deployments.
+        const available = Array.isArray(payload) ? payload : payload.seasons;
+        const active = Array.isArray(payload)
+          ? CONFIGURED_ACTIVE_SEASON
+          : payload.active_season || CONFIGURED_ACTIVE_SEASON;
+        const normalized = Array.from(new Set([active, ...(available || [])]));
+        setSeasons(normalized);
+        setSeason(active);
+      })
+      .catch(() => {
+        setSeasons([CONFIGURED_ACTIVE_SEASON]);
+        setSeason(CONFIGURED_ACTIVE_SEASON);
+      });
   }, []);
 
   useEffect(() => {

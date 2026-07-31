@@ -1,4 +1,34 @@
-# React + Vite
+# CofC Soccer Analytics Frontend
+
+React/Vite dashboard for team analytics, COUG Table views, and the private
+staff prototype.
+
+## Local configuration
+
+Create `frontend/.env.local` when overrides are needed:
+
+```text
+VITE_API_URL=http://localhost:8000
+VITE_ACTIVE_SEASON=2026
+VITE_STAFF_PASSCODE=<local demo passcode>
+```
+
+The COUG Table reads the active season from `/api/seasons`. The frontend
+variable is a startup/failure fallback and should match
+`configs/organizations/cofc.json`. Historical seasons remain selectable.
+The staff prediction simulator reads its matches from `/api/schedule`; update
+the tracked season CSV rather than adding matches directly to React.
+
+## Commands
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run lint
+```
+
+## Vite notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -3,6 +3,7 @@
   "display_name": "College of Charleston Men's Soccer",
   "team_name": "Charleston Cougars",
   "short_name": "CofC",
+  "active_season": "2026",
   "timezone": "America/New_York",
   "primary_competition": "NCAA Division I Men's Soccer",
   "source_systems": {
