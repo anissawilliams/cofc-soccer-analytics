@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import db
+from backend.schedule_data import load_api_schedule
+from backend.season_config import get_active_season, season_payload
 
 
 app = FastAPI(title="Cougars Analytics API")
@@ -199,8 +201,18 @@ def health():
 
 @app.get("/api/seasons")
 def get_seasons():
-    """Distinct seasons available in the database."""
-    return db.get_seasons()
+    """Active season plus distinct seasons available in the database."""
+    return season_payload(db.get_seasons())
+
+
+@app.get("/api/schedule")
+def get_schedule(season: str | None = None):
+    """Tracked season schedule used by staff-facing application views."""
+    selected_season = season or get_active_season()
+    return {
+        "season": selected_season,
+        "matches": load_api_schedule(selected_season),
+    }
 
 
 @app.get("/api/coug-scores-with-minutes")
@@ -216,9 +228,9 @@ def get_coug_leaderboard_with_minutes(season: str):
 
 
 @app.get("/api/player-match-history/{athlete_id}")
-def get_player_match_history(athlete_id: str, season: str = "2025"):
+def get_player_match_history(athlete_id: str, season: str | None = None):
     """Per-match score + minutes history for a single player."""
-    return db.get_player_match_history(athlete_id, season)
+    return db.get_player_match_history(athlete_id, season or get_active_season())
 
 
 @app.get("/api/player-coug-trace/{athlete_id}")
