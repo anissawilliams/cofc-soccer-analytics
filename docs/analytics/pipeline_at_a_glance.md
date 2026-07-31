@@ -208,7 +208,7 @@ Before coach-facing publication:
 ```bash
 .venv/bin/python pipeline/analytics/validate_scoring_config.py
 .venv/bin/python pipeline/analytics/check_peak_scoring_fixture.py
-.venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season <season>
+.venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season <season> --slug <match_slug>
 .venv/bin/python pipeline/analytics/preflight_check.py --season <season>
 ```
 
@@ -218,6 +218,9 @@ Expected publish logic:
 - `check_peak_scoring_fixture.py` checks critical PEAK behavior.
 - `reconcile_coug_scores.py` compares event-derived scores to legacy/PDF values.
 - `preflight_check.py` blocks publication if unresolved triage rows remain.
+
+For the complete operating sequence, report-reading order, signoff rules, and
+current gaps, see `docs/analytics/reconciliation_workflow_before_databricks.md`.
 
 ## What Must Not Be Lost
 
@@ -233,4 +236,3 @@ Expected publish logic:
 - analyst signoff
 - preflight publication gate
 - staff portal traceability
-
