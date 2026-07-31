@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import re
 import sys
@@ -52,6 +53,10 @@ class MatchInventory:
     minutes_csv: bool
     attributed_csv: bool
     coug_scores_csv: bool
+    source_file_ids_json: str
+    source_parse_statuses_json: str
+    source_sha256s_json: str
+    source_storage_paths_json: str
     source_status: str
     notes: str
 
@@ -107,7 +112,7 @@ def fetch_source_file_rows(season: str) -> dict[tuple[str, str], dict]:
     try:
         response = (
             client.table("source_file")
-            .select("match_slug,source_type,storage_bucket,storage_path,upload_status,parse_status")
+            .select("id,match_slug,source_type,storage_bucket,storage_path,upload_status,parse_status,sha256")
             .eq("season", str(season))
             .eq("is_active", True)
             .execute()
@@ -130,6 +135,20 @@ def source_status(local_exists: bool, storage_row: dict | None) -> str:
         status = storage_row.get("upload_status") or "registered"
         return "storage" if status == "uploaded" else f"storage_{status}"
     return "missing"
+
+
+def source_metadata_json(
+    source_file_rows: dict[tuple[str, str], dict],
+    slug: str,
+    field: str,
+) -> str:
+    """Serialize one source_file field by source type for stable CSV output."""
+    values = {
+        source_type: str(row.get(field) or "")
+        for (match_slug, source_type), row in sorted(source_file_rows.items())
+        if match_slug == slug and row.get(field)
+    }
+    return json.dumps(values, sort_keys=True, separators=(",", ":"))
 
 
 def inventory_match(
@@ -167,6 +186,10 @@ def inventory_match(
     minutes_csv = (output_dir / f"{slug}_minutes.csv").exists()
     attributed_csv = (output_dir / f"{slug}_attributed.csv").exists()
     coug_scores_csv = (output_dir / f"{slug}_coug_scores.csv").exists()
+    source_file_ids_json = source_metadata_json(source_file_rows, slug, "id")
+    source_parse_statuses_json = source_metadata_json(source_file_rows, slug, "parse_status")
+    source_sha256s_json = source_metadata_json(source_file_rows, slug, "sha256")
+    source_storage_paths_json = source_metadata_json(source_file_rows, slug, "storage_path")
 
     notes = []
     if not match_dir.exists() and not any(
@@ -219,6 +242,10 @@ def inventory_match(
         minutes_csv=minutes_csv,
         attributed_csv=attributed_csv,
         coug_scores_csv=coug_scores_csv,
+        source_file_ids_json=source_file_ids_json,
+        source_parse_statuses_json=source_parse_statuses_json,
+        source_sha256s_json=source_sha256s_json,
+        source_storage_paths_json=source_storage_paths_json,
         source_status=status,
         notes="; ".join(notes),
     )

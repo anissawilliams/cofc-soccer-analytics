@@ -407,9 +407,9 @@ def _same_event_time(left, right, tolerance: float = 0.001) -> bool:
     return abs(float(left) - float(right)) <= tolerance
 
 
-def athlete_event_exists(sb: Client, payload: dict) -> bool:
+def find_existing_athlete_event(sb: Client, payload: dict) -> dict | None:
     """
-    Return True when the same source-backed evidence row already exists.
+    Return the matching source-backed evidence row when it already exists.
 
     This protects reruns even before database unique indexes are added. The
     matching key mirrors the proposed Supabase guardrail in
@@ -418,7 +418,7 @@ def athlete_event_exists(sb: Client, payload: dict) -> bool:
     """
     query = (
         sb.table("athlete_event")
-        .select("id, event_time, raw_value_context")
+        .select("id, event_time, raw_value_context, source_file_id")
         .eq("athlete_id", payload["athlete_id"])
         .eq("session_id", payload["session_id"])
         .eq("metric_id", payload["metric_id"])
@@ -433,15 +433,29 @@ def athlete_event_exists(sb: Client, payload: dict) -> bool:
         if not _same_event_time(row.get("event_time"), expected_time):
             continue
         if (row.get("raw_value_context") or {}) == expected_context:
-            return True
-    return False
+            return row
+    return None
+
+
+def athlete_event_exists(sb: Client, payload: dict) -> bool:
+    """Backward-compatible boolean duplicate check."""
+    return find_existing_athlete_event(sb, payload) is not None
 
 
 def insert_athlete_event_if_new(sb: Client, payload: dict, dry_run: bool) -> bool:
-    """Insert one athlete_event payload. Returns False when it is a duplicate."""
+    """Insert an event or backfill exact-file provenance on a duplicate."""
     if dry_run:
         return True
-    if athlete_event_exists(sb, payload):
+    existing = find_existing_athlete_event(sb, payload)
+    if existing:
+        source_file_id = payload.get("source_file_id")
+        if source_file_id and not existing.get("source_file_id"):
+            (
+                sb.table("athlete_event")
+                .update({"source_file_id": source_file_id})
+                .eq("id", existing["id"])
+                .execute()
+            )
         return False
     sb.table("athlete_event").insert(payload).execute()
     return True
@@ -468,6 +482,40 @@ def get_or_create_source(sb: Client, platform: str, label: str, priority: int, d
         return f"dry-run-source-{platform}"
     result = sb.table("data_source").insert(payload).execute()
     return result.data[0]["id"]
+
+
+def get_exact_source_file_id(
+    sb: Client,
+    season: str,
+    slug: str,
+    source_type: str,
+) -> str | None:
+    """Resolve one active source_file UUID, refusing ambiguous matches."""
+    result = (
+        sb.table("source_file")
+        .select("id, storage_path")
+        .eq("season", str(season))
+        .eq("match_slug", slug)
+        .eq("source_type", source_type)
+        .eq("is_active", True)
+        .limit(2)
+        .execute()
+    )
+    rows = result.data or []
+    if not rows:
+        log.warning(
+            f"  No registered source_file for {slug} / {source_type}; "
+            "provenance left blank"
+        )
+        return None
+    if len(rows) > 1:
+        paths = ", ".join(str(row.get("storage_path", "")) for row in rows)
+        log.warning(
+            f"  Multiple active source_file rows for {slug} / {source_type}: "
+            f"{paths}; provenance left blank"
+        )
+        return None
+    return rows[0]["id"]
 
 
 def load_attributed_events(
@@ -743,6 +791,7 @@ def load_wyscout_player_events(
         athlete_map: dict[str, str],
         metric_map: dict[str, str],
         source_id: str,
+        source_file_id: str | None,
         dry_run: bool,
 ):
     """
@@ -847,6 +896,8 @@ def load_wyscout_player_events(
                     "raw_code": row.get("raw_code"),
                 },
             }
+            if source_file_id:
+                payload["source_file_id"] = source_file_id
 
             if insert_athlete_event_if_new(sb, payload, dry_run):
                 inserted += 1
@@ -1044,9 +1095,12 @@ def load_match(slug: str, season: str, dry_run: bool = False):
             sb, "wyscout", f"Wyscout Sportscode — {slug}",
             SOURCE_PRIORITY["xml_players"], dry_run
         )
+        source_file_id = get_exact_source_file_id(
+            sb, season, slug, "sportscode"
+        )
         load_wyscout_player_events(
                 sb, session_id, players_df, athlete_map,
-                metric_map, source_id, dry_run
+                metric_map, source_id, source_file_id, dry_run
         )
     # ── 6. Wyscout stat events (scored CSV — fills gaps, lower trust) ──────
     if scored_df is not None:
