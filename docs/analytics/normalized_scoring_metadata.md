@@ -52,6 +52,10 @@ note.
    .venv/bin/python pipeline/analytics/validate_scoring_metadata_migration.py --check-live
    ```
 
+   Before the migration, `--check-live` is expected to fail because the live
+   `metric_scoring_rule` table is absent. Run it again after applying the SQL;
+   success then confirms all 21 active rules are present.
+
 4. Review and run `schema/2026_07_metric_scoring_rule.sql` in Supabase.
 5. Confirm the SQL verification queries return 21 rules and 0 missing labels.
 6. Deploy the backend. It reads normalized metadata when present and falls back

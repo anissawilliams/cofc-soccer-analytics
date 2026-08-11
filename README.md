@@ -67,6 +67,19 @@ COUG score reconciliation:
 .venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season 2025
 ```
 
+COUG Table / Player Development read model (run after score ingestion):
+
+```bash
+.venv/bin/python pipeline/analytics/build_dashboard_read_model.py --season 2025
+```
+
+The API reads the generated compact season index and per-player JSON files
+first, then falls back to Supabase if they are absent. Set
+`COFC_READ_MODEL_DIR` when generated data lives outside the repository or on a
+persistent deployment volume. `load_season_scores.py` refreshes the affected
+season automatically after successful writes; use `--no-refresh-read-model`
+only for maintenance or backfill workflows that intentionally defer publishing.
+
 ## Important Docs
 
 - [Current state inventory](docs/analytics/current_state_inventory.md)

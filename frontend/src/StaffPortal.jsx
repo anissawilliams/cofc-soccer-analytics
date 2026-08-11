@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Cell,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { cachedApiFetch } from './apiCache';
 
 const T = {
   garnet: '#800000',
@@ -14,9 +15,7 @@ const T = {
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function apiFetch(path) {
-  const res = await fetch(`${API}${path}`);
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
-  return res.json();
+  return cachedApiFetch(API, path);
 }
 
 const UPCOMING_MATCHES_2026 = [
