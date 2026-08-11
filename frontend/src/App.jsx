@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Cell,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart
 } from 'recharts';
-import CougTable from './CougTable.jsx';
-import StaffPortal from './StaffPortal.jsx';
+const CougTable = lazy(() => import('./CougTable.jsx'));
+const StaffPortal = lazy(() => import('./StaffPortal.jsx'));
 
 const slideDownStyle = `
   @keyframes slideDown {
@@ -339,8 +339,24 @@ export default function App() {
       </div>
       {tab === 'analytics' && <AnalyticsDashboard />}
       {tab === 'coug'      && <div style={{ padding: '2rem' }}><COUGDashboardLegacy /></div>}
-      {tab === 'coug2'     && <CougTable />}
-      {tab === 'staff'     && <StaffPortal />}
+      {tab === 'coug2' && (
+        <Suspense fallback={<SectionLoader label="Loading COUG Table..." />}>
+          <CougTable />
+        </Suspense>
+      )}
+      {tab === 'staff' && (
+        <Suspense fallback={<SectionLoader label="Loading Staff Portal..." />}>
+          <StaffPortal />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+function SectionLoader({ label }) {
+  return (
+    <div style={{ padding: '5rem', textAlign: 'center', color: colors.garnet }}>
+      <h2>{label}</h2>
     </div>
   );
 }

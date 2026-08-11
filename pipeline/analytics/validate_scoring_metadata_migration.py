@@ -52,13 +52,38 @@ def validate(*, check_live: bool) -> list[str]:
         if not url or not key:
             errors.append("SUPABASE_URL and SUPABASE_SERVICE_KEY are required.")
         else:
-            rows = create_client(url, key).table("metric_definition").select(
+            client = create_client(url, key)
+            rows = client.table("metric_definition").select(
                 "name"
             ).execute().data or []
             live_names = {row["name"] for row in rows}
             missing_metrics = sorted(metric_names - live_names)
             if missing_metrics:
                 errors.append(f"Seed metrics missing from Supabase: {missing_metrics}")
+            try:
+                rule_result = client.table("metric_scoring_rule").select(
+                    "source_event_label", count="exact"
+                ).eq("is_active", True).is_("effective_to", "null").execute()
+                live_labels = {
+                    row["source_event_label"] for row in (rule_result.data or [])
+                }
+                missing_live_labels = sorted(expected_labels - live_labels)
+                if missing_live_labels:
+                    errors.append(
+                        "Active scoring rules missing from Supabase: "
+                        f"{missing_live_labels}"
+                    )
+                if rule_result.count != len(expected_labels):
+                    errors.append(
+                        "Expected "
+                        f"{len(expected_labels)} active live rules; found "
+                        f"{rule_result.count or 0}."
+                    )
+            except Exception as exc:
+                errors.append(
+                    "Supabase metric_scoring_rule is unavailable; migration is "
+                    f"probably not applied: {exc}"
+                )
 
     print(
         f"Scoring metadata migration: {len(pairs)} seed rows, "
