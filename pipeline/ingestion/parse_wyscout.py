@@ -5,6 +5,7 @@ Handles: sportscode, player events, team events, effective time
 
 import re
 import csv
+import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
 # ── Roster loading ────────────────────────────────────────────
@@ -41,7 +42,8 @@ def load_cofc_roster(path: Path) -> dict:
 
 
 def _normalize_name(name: str) -> str:
-    return name.strip().lower()
+    normalized = unicodedata.normalize("NFKD", name)
+    return "".join(char for char in normalized if not unicodedata.combining(char)).strip().lower()
 
 
 # ── Encoding detection ────────────────────────────────────────

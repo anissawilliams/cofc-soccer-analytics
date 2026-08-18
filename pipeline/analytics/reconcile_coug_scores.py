@@ -22,6 +22,7 @@ import ast
 import os
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -49,7 +50,8 @@ class ScoreFiles:
 
 
 def normalize_name(name: str) -> str:
-    name = str(name or "").strip().lower()
+    name = unicodedata.normalize("NFKD", str(name or ""))
+    name = "".join(char for char in name if not unicodedata.combining(char)).strip().lower()
     name = re.sub(r"[^a-z0-9]+", " ", name)
     return " ".join(name.split())
 
@@ -516,9 +518,9 @@ def build_event_trace(tables: dict[str, pd.DataFrame], version: str) -> pd.DataF
     df["player_key"] = df["player"].map(normalize_name)
 
     cols = [
-        "session_id", "session_date", "season", "competition", "venue", "player", "player_key",
+        "athlete_id", "session_id", "session_date", "season", "competition", "venue", "player", "player_key",
         "position", "position_group", "raw_metric_name", "scoring_metric_name", "metric_name",
-        "raw_category_code", "category_code", "score_bucket", "mapping_status", "mapping_notes",
+        "raw_category_code", "category_code", "score_bucket", "mapping_status", "default_include", "mapping_notes",
         "raw_value", "weight", "weight_missing", "event_score", "is_multiplier", "event_time",
         "candidate_peak_metric", "candidate_peak_phase", "candidate_peak_weight",
         "candidate_peak_score", "candidate_advance_action", "candidate_advance_threshold_count",
