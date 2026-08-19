@@ -741,6 +741,8 @@ def load_wyscout_player_events(
                     "category": category,
                     "all_labels": labels,
                     "raw_code": row.get("raw_code"),
+                    "half": int(row["half"]) if pd.notna(row.get("half")) else None,
+                    "match_minute": round(float(row["match_minute"]), 4) if pd.notna(row.get("match_minute")) else None,
                 },
             }
 

@@ -57,11 +57,50 @@ def load_tables(client) -> dict[str, pd.DataFrame]:
     return tables
 
 
-def selected_trace(trace: pd.DataFrame, season: str, slug: str) -> pd.DataFrame:
+def resolve_session_id(client, season: str, slug: str) -> str:
+    """Resolve a loader slug to exactly one match session."""
     date = slug_date(slug)
+    rows = (
+        client.table("session")
+        .select("id, session_date, season, session_type, notes")
+        .eq("session_date", date)
+        .eq("season", str(season))
+        .execute()
+        .data
+        or []
+    )
+    slug_marker = f"slug: {slug}"
+    candidates = [
+        row for row in rows
+        if str(row.get("session_type") or "") in {"match", "scrimmage"}
+        and slug_marker in str(row.get("notes") or "").splitlines()
+    ]
+    if len(candidates) != 1:
+        raise ValueError(
+            f"Expected exactly one match session for '{slug_marker}' in season {season}; "
+            f"found {len(candidates)}. Refusing date-only score selection."
+        )
+
+    session_id = candidates[0]["id"]
+    match_rows = (
+        client.table("match")
+        .select("id, session_id")
+        .eq("session_id", session_id)
+        .execute()
+        .data
+        or []
+    )
+    if len(match_rows) != 1:
+        raise ValueError(
+            f"Expected exactly one match row for session {session_id}; found {len(match_rows)}."
+        )
+    return session_id
+
+
+def selected_trace(trace: pd.DataFrame, season: str, session_id: str) -> pd.DataFrame:
     selected = trace[
         trace["season"].astype(str).eq(str(season))
-        & trace["session_date"].astype(str).eq(date)
+        & trace["session_id"].astype(str).eq(str(session_id))
     ].copy()
     return selected.sort_values(["player", "event_time", "raw_metric_name"])
 
@@ -145,10 +184,25 @@ def build_publish_summary(trace: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def resolve_weight_version_id(client, version: str) -> str:
+def resolve_scoring_version_id(client, version: str) -> str:
+    rows = (
+        client.table("scoring_version")
+        .select("id, version")
+        .eq("version", version)
+        .execute()
+        .data
+        or []
+    )
+    if len(rows) != 1:
+        raise ValueError(f"Expected one scoring_version row for '{version}'; found {len(rows)}.")
+    return rows[0]["id"]
+
+
+def resolve_legacy_weight_id(client, version: str) -> str:
+    """Return the existing compatibility FK while the legacy column remains."""
     rows = (
         client.table("metric_weight")
-        .select("id, effective_from, created_at")
+        .select("id, created_at")
         .eq("version", version)
         .execute()
         .data
@@ -156,11 +210,15 @@ def resolve_weight_version_id(client, version: str) -> str:
     )
     if not rows:
         raise ValueError(f"No metric_weight rows found for version '{version}'.")
-    rows.sort(key=lambda row: (str(row.get("effective_from") or ""), str(row.get("created_at") or "")))
-    return rows[-1]["id"]
+    rows.sort(key=lambda row: (str(row.get("created_at") or ""), str(row["id"])))
+    return rows[0]["id"]
 
 
-def score_payloads(summary: pd.DataFrame, weight_version_id: str) -> list[dict[str, object]]:
+def score_payloads(
+    summary: pd.DataFrame,
+    scoring_version_id: str,
+    legacy_weight_id: str,
+) -> list[dict[str, object]]:
     calculated_at = datetime.now(timezone.utc).isoformat()
     payloads: list[dict[str, object]] = []
     for _, row in summary.iterrows():
@@ -168,7 +226,8 @@ def score_payloads(summary: pd.DataFrame, weight_version_id: str) -> list[dict[s
             {
                 "athlete_id": row["athlete_id"],
                 "session_id": row["session_id"],
-                "weight_version_id": weight_version_id,
+                "scoring_version_id": scoring_version_id,
+                "weight_version_id": legacy_weight_id,
                 "aset_score": round(float(row["aset_score"]), 4),
                 "peak_score": round(float(row["peak_score"]), 4),
                 "set_piece_score": round(float(row["set_piece_score"]), 4),
@@ -204,7 +263,8 @@ def main() -> None:
 
     client = get_client()
     tables = load_tables(client)
-    trace = selected_trace(build_event_trace(tables, args.weight_version), args.season, args.slug)
+    session_id = resolve_session_id(client, args.season, args.slug)
+    trace = selected_trace(build_event_trace(tables, args.weight_version), args.season, session_id)
     errors = validation_errors(trace)
     if errors:
         print("Publication blocked:")
@@ -228,11 +288,12 @@ def main() -> None:
         print("Dry run only. Review the CSV and rerun with --apply to publish these match scores.")
         return
 
-    weight_version_id = resolve_weight_version_id(client, args.weight_version)
-    payloads = score_payloads(summary, weight_version_id)
+    scoring_version_id = resolve_scoring_version_id(client, args.weight_version)
+    legacy_weight_id = resolve_legacy_weight_id(client, args.weight_version)
+    payloads = score_payloads(summary, scoring_version_id, legacy_weight_id)
     client.table("coug_score").upsert(
         payloads,
-        on_conflict="athlete_id,session_id,weight_version_id,score_type",
+        on_conflict="athlete_id,session_id,scoring_version_id,score_type",
     ).execute()
     print(f"Published {len(payloads)} event-derived COUG score row(s) for {args.slug}.")
 

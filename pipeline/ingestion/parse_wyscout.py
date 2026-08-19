@@ -80,6 +80,7 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
 
     halves        = {}
     player_events = []
+    all_player_events = []
     team_events   = []
     skipped       = 0
     player_re     = re.compile(r"\((\d+)\)\s+(.+)")
@@ -105,28 +106,34 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
             jersey  = m.group(1)
             name    = m.group(2).strip()
 
-            if cofc_roster is not None:
-                valid_names = cofc_roster.get(jersey)
-                if valid_names is None or _normalize_name(name) not in valid_names:
-                    skipped += 1
-                    continue
-                # name already matches — never overwrite a name that didn't match
-
-            outcome = (
-                "Plus"    if "Plus"    in labels else
-                "Minus"   if "Minus"   in labels else
-                "Neutral" if "Neutral" in labels else
-                "Unknown"
-            )
-            player_events.append({
+            event = {
                 "jersey":   jersey,
                 "name":     name,
                 "start":    start,
                 "end":      end,
                 "labels":   labels,
-                "outcome":  outcome,
+                "outcome": (
+                    "Plus"    if "Plus"    in labels else
+                    "Minus"   if "Minus"   in labels else
+                    "Neutral" if "Neutral" in labels else
+                    "Unknown"
+                ),
                 "raw_code": code,
-            })
+            }
+
+            if cofc_roster is not None:
+                valid_names = cofc_roster.get(jersey)
+                event["roster_match"] = valid_names is not None and _normalize_name(name) in valid_names
+                all_player_events.append(event)
+                if not event["roster_match"]:
+                    skipped += 1
+                    continue
+                # name already matches — never overwrite a name that didn't match
+            else:
+                event["roster_match"] = None
+                all_player_events.append(event)
+
+            player_events.append(event)
         elif code:
             team_events.append({
                 "code":   code,
@@ -135,12 +142,31 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
                 "labels": labels,
             })
 
+    first_start = halves.get("first_start", 0.0)
+    second_start = halves.get("second_start")
+    for event in all_player_events:
+        if second_start is not None and event["start"] >= second_start:
+            event["half"] = 2
+            event["match_minute"] = 45.0 + max(0.0, event["start"] - second_start) / 60.0
+        else:
+            event["half"] = 1
+            event["match_minute"] = max(0.0, event["start"] - first_start) / 60.0
+
+    for event in team_events:
+        if second_start is not None and event["start"] >= second_start:
+            event["half"] = 2
+            event["match_minute"] = 45.0 + max(0.0, event["start"] - second_start) / 60.0
+        else:
+            event["half"] = 1
+            event["match_minute"] = max(0.0, event["start"] - first_start) / 60.0
+
     filter_msg = f" | {skipped} opponent events filtered out" if cofc_roster else " | ⚠️  no roster filter applied"
     print(f"  Sportscode: {len(player_events)} player events, "
           f"{len(team_events)} team events | halves: {halves}{filter_msg}")
     return {
         "halves":        halves,
         "player_events": player_events,
+        "all_player_events": all_player_events,
         "team_events":   team_events,
     }
 

@@ -8,6 +8,8 @@ All functions return plain Python dicts/lists — no Supabase types leak out.
 If data isn't in Supabase yet, functions return empty lists or None cleanly.
 """
 
+from __future__ import annotations
+
 import os
 import re
 from pathlib import Path
@@ -750,6 +752,143 @@ def get_player_coug_trace(
         }
     except Exception as e:
         print(f"[db] get_player_coug_trace error: {e}")
+        return empty
+
+
+def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
+    """Chronological, source-traceable event story for one match session."""
+    empty = {
+        "session_id": session_id,
+        "match": None,
+        "summary": {"events": 0, "players": 0, "aset": 0, "peak": 0, "set_piece": 0, "total": 0},
+        "events": [],
+    }
+    try:
+        client = get_client()
+        match_rows = (
+            client.table("match")
+            .select(
+                "id, session_id, result, goals_for, goals_against, "
+                "session:session_id(session_date, season, competition, venue), "
+                "home_team:home_team_id(name, short_name, is_cofc), "
+                "away_team:away_team_id(name, short_name, is_cofc)"
+            )
+            .eq("session_id", session_id)
+            .execute()
+            .data
+            or []
+        )
+        if len(match_rows) != 1:
+            return empty
+
+        match_row = match_rows[0]
+        session = match_row.get("session") or {}
+        home = match_row.get("home_team") or {}
+        away = match_row.get("away_team") or {}
+        opponent = away if home.get("is_cofc") else home
+
+        raw_events = (
+            client.table("athlete_event")
+            .select(
+                "id, athlete_id, raw_value, raw_value_context, collection_method, "
+                "manually_tagged, coach_confirmed, event_time, "
+                "athlete:athlete_id(display_name, first_name, last_name, position, position_group), "
+                "metric:metric_id(id, name, peak_phase, aset_letter, category:category_id(code, label)), "
+                "source:source_id(name, platform, source_type, source_priority)"
+            )
+            .eq("session_id", session_id)
+            .execute()
+            .data
+            or []
+        )
+
+        metric_ids = sorted({
+            (row.get("metric") or {}).get("id") for row in raw_events
+            if (row.get("metric") or {}).get("id")
+        })
+        weights = {}
+        if metric_ids:
+            weight_rows = (
+                client.table("metric_weight")
+                .select("metric_id, weight, version")
+                .eq("version", weight_version)
+                .in_("metric_id", metric_ids)
+                .execute()
+                .data
+                or []
+            )
+            weights = {row["metric_id"]: row.get("weight") for row in weight_rows}
+
+        events = []
+        player_ids = set()
+        totals = {"aset": 0.0, "peak": 0.0, "set_piece": 0.0, "total": 0.0}
+        for row in raw_events:
+            athlete = row.get("athlete") or {}
+            metric = row.get("metric") or {}
+            category = metric.get("category") or {}
+            context = row.get("raw_value_context") or {}
+            bucket = _score_bucket(category.get("code"))
+            raw_value = 1.0 if row.get("raw_value") is None else float(row.get("raw_value"))
+            weight = weights.get(metric.get("id"))
+            contribution = round(raw_value * float(weight), 4) if weight is not None else None
+            if bucket in totals and contribution is not None:
+                totals[bucket] = round(totals[bucket] + contribution, 4)
+                totals["total"] = round(totals["total"] + contribution, 4)
+
+            athlete_id = row.get("athlete_id")
+            if athlete_id:
+                player_ids.add(athlete_id)
+            source_time = row.get("event_time")
+            match_minute = context.get("match_minute")
+            if match_minute is None and source_time is not None:
+                match_minute = max(0.0, float(source_time) / 60.0)
+            events.append({
+                "event_id": row.get("id"),
+                "athlete_id": athlete_id,
+                "player": athlete.get("display_name") or f"{athlete.get('first_name') or ''} {athlete.get('last_name') or ''}".strip(),
+                "position": athlete.get("position"),
+                "position_group": athlete.get("position_group"),
+                "metric_name": metric.get("name"),
+                "category_code": category.get("code"),
+                "category_label": category.get("label"),
+                "score_bucket": bucket,
+                "raw_value": raw_value,
+                "weight": weight,
+                "contribution": contribution,
+                "source_time": source_time,
+                "match_minute": round(float(match_minute), 2) if match_minute is not None else None,
+                "half": context.get("half"),
+                "outcome": context.get("outcome"),
+                "labels": context.get("all_labels") or [],
+                "source_name": (row.get("source") or {}).get("name"),
+                "source_platform": (row.get("source") or {}).get("platform"),
+                "collection_method": row.get("collection_method"),
+                "coach_confirmed": row.get("coach_confirmed"),
+            })
+
+        events.sort(key=lambda event: (
+            event.get("match_minute") if event.get("match_minute") is not None else 9999,
+            event.get("player") or "",
+        ))
+        return {
+            "session_id": session_id,
+            "match": {
+                "match_id": match_row.get("id"),
+                "date": session.get("session_date"),
+                "season": session.get("season"),
+                "competition": session.get("competition"),
+                "venue": session.get("venue"),
+                "opponent": opponent.get("name") or "Unknown",
+                "home": bool(home.get("is_cofc")),
+                "result": match_row.get("result"),
+                "goals_for": match_row.get("goals_for"),
+                "goals_against": match_row.get("goals_against"),
+            },
+            "summary": {"events": len(events), "players": len(player_ids), **totals},
+            "events": events,
+        }
+    except Exception as exc:
+        print(f"[db] get_match_story error: {exc}")
         return empty
 
 

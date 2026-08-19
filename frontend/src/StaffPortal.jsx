@@ -166,8 +166,8 @@ function StaffPlaceholder({ title, body }) {
 }
 
 function PlayerDevelopmentTrace() {
-  const [season, setSeason] = useState('2025');
-  const [seasons, setSeasons] = useState(['2025']);
+  const [season, setSeason] = useState('');
+  const [seasons, setSeasons] = useState([]);
   const [players, setPlayers] = useState([]);
   const [selectedAthleteId, setSelectedAthleteId] = useState('');
   const [trace, setTrace] = useState(null);
@@ -178,11 +178,16 @@ function PlayerDevelopmentTrace() {
   useEffect(() => {
     apiFetch('/api/seasons')
       .then(data => {
-        const available = data.length ? data : ['2025'];
-        setSeasons(available);
-        setSeason(available[0]);
+        const available = [...new Set(data.map(String).filter(Boolean))]
+          .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+        const knownSeasons = available.length ? available : ['2026'];
+        setSeasons(knownSeasons);
+        setSeason(knownSeasons[0]);
       })
-      .catch(() => setSeasons(['2025']));
+      .catch(() => {
+        setSeasons(['2026']);
+        setSeason('2026');
+      });
   }, []);
 
   useEffect(() => {

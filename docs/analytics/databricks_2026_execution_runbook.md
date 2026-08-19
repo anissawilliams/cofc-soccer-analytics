@@ -36,6 +36,11 @@ Rules:
 - Do not use display-name abbreviations unless Wyscout emits them that way.
 - Review unmatched Wyscout names before adding aliases; do not loosen the
   roster filter to admit unknown names.
+- Preserve every player-coded and team event in the raw analytics outputs even
+  when it does not match the CofC roster. The roster-filtered `_players.csv`
+  remains the scoring input; `_all_player_events.csv` and `_team_events.csv`
+  are non-scoring evidence for opponent analysis, possession work, and Match
+  Flow development.
 
 The existing parser behavior to preserve is in
 `pipeline/ingestion/parse_wyscout.py`:
@@ -52,6 +57,12 @@ Before the first match, sync the roster into `public.athlete`. This keeps new
 players and position changes reviewable before event ingestion. The athlete
 table stores player identity and position; the roster CSV remains the source
 for jersey-number parsing.
+
+Before publishing any 2026 score, review and apply
+`schema/2026_08_scoring_version.sql`. It replaces the former practice of using
+one arbitrary `metric_weight.id` as the version key with a stable
+`scoring_version.id`. The migration aborts if existing rows cannot be mapped
+unambiguously; do not bypass that check.
 
 ```bash
 # Preview exact identity matches, new-player inserts, and position updates.

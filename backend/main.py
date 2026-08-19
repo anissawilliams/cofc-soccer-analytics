@@ -9,10 +9,13 @@ when data isn't available yet (XML pipeline pending).
 DO NOT PUSH until XML scores are loaded into Supabase.
 """
 
+from __future__ import annotations
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import sys
 from pathlib import Path
+from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import db
 
@@ -37,7 +40,7 @@ def get_players():
 
 
 @app.get("/api/player-stats")
-def get_player_stats(season: str | None = None):
+def get_player_stats(season: Optional[str] = None):
     """Season stats per player. Event metrics null until XML loads."""
     return db.get_player_season_stats(season)
 
@@ -45,7 +48,7 @@ def get_player_stats(season: str | None = None):
 # ── TEAM LEADERS ──────────────────────────────────────────────────────────────
 
 @app.get("/api/leaders/{metric}")
-def get_team_leaders(metric: str, season: str | None = None):
+def get_team_leaders(metric: str, season: Optional[str] = None):
     """
     Players sorted by a given metric.
     Returns empty list if metric data not yet available.
@@ -76,7 +79,7 @@ def get_team_leaders(metric: str, season: str | None = None):
 # ── PASSING ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/team/passing")
-def get_team_passing(season: str | None = None):
+def get_team_passing(season: Optional[str] = None):
     """Passing stats per player. Null until XML loads."""
     stats = db.get_player_season_stats(season)
     result = []
@@ -103,7 +106,7 @@ def get_team_passing(season: str | None = None):
 # ── ROSTER DEVELOPMENT ────────────────────────────────────────────────────────
 
 @app.get("/api/roster/development")
-def get_roster_development(season: str | None = None):
+def get_roster_development(season: Optional[str] = None):
     """
     Development targets by position.
     Status will be 'Pending Data' until XML pipeline populates event stats.
@@ -114,13 +117,13 @@ def get_roster_development(season: str | None = None):
 # ── MATCHES ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/team/matches")
-def get_matches(season: str | None = None):
+def get_matches(season: Optional[str] = None):
     """Match results from Supabase."""
     return db.get_match_results(season)
 
 
 @app.get("/api/team/summary")
-def get_team_summary(season: str | None = None):
+def get_team_summary(season: Optional[str] = None):
     """Aggregate W/D/L record and goal stats."""
     return db.get_team_summary(season)
 
@@ -128,7 +131,7 @@ def get_team_summary(season: str | None = None):
 # ── COUG SCORES ───────────────────────────────────────────────────────────────
 
 @app.get("/api/coug-scores")
-def get_coug_scores(season: str | None = None, session_id: str | None = None):
+def get_coug_scores(season: Optional[str] = None, session_id: Optional[str] = None):
     """COUG Table scores. Empty until XML pipeline runs."""
     return db.get_coug_scores(session_id=session_id, season=season)
 
@@ -142,7 +145,7 @@ def get_coug_leaderboard(season: str):
 # ── SHOTS BY TIME ─────────────────────────────────────────────────────────────
 
 @app.get("/api/team/shots-by-time")
-def get_shots_by_time(season: str | None = None):
+def get_shots_by_time(season: Optional[str] = None):
     """
     15-minute interval shot distribution.
     Returns null data until athlete_event is populated from XML.
@@ -162,7 +165,7 @@ def get_shots_by_time(season: str | None = None):
 # ── FORMATIONS ────────────────────────────────────────────────────────────────
 
 @app.get("/api/team/formations")
-def get_formations(season: str | None = None):
+def get_formations(season: Optional[str] = None):
     """
     Formation performance data.
     Returns empty until formation tracking is added to session/match notes.
@@ -209,6 +212,12 @@ def get_coug_scores_with_minutes(session_id: str):
     return db.get_coug_scores_with_minutes(session_id)
 
 
+@app.get("/api/match-story/{session_id}")
+def get_match_story(session_id: str, weight_version: str = "trial_1"):
+    """Chronological player-event story for one match session."""
+    return db.get_match_story(session_id, weight_version)
+
+
 @app.get("/api/coug-leaderboard-with-minutes/{season}")
 def get_coug_leaderboard_with_minutes(season: str):
     """Season leaderboard with aggregated scores and total minutes."""
@@ -225,7 +234,7 @@ def get_player_match_history(athlete_id: str, season: str = "2025"):
 def get_player_coug_trace(
     athlete_id: str,
     season: str = "2025",
-    session_id: str | None = None,
+    session_id: Optional[str] = None,
     weight_version: str = "trial_1",
 ):
     """Player-level COUG event ledger with scoring weights and source traceability."""

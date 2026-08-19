@@ -24,7 +24,13 @@ FROM public.athlete_session_stint
 GROUP BY athlete_id, session_id
 HAVING COUNT(*) > 1;
 
--- COUG scores should be unique for a player/session/weight-version/score-type.
+-- COUG scores should be unique for a player/session/scoring-version/score-type.
+SELECT athlete_id, session_id, scoring_version_id, score_type, COUNT(*) AS duplicate_count
+FROM public.coug_score
+GROUP BY athlete_id, session_id, scoring_version_id, score_type
+HAVING COUNT(*) > 1;
+
+-- Retain the legacy uniqueness check during the compatibility window.
 SELECT athlete_id, session_id, weight_version_id, score_type, COUNT(*) AS duplicate_count
 FROM public.coug_score
 GROUP BY athlete_id, session_id, weight_version_id, score_type
@@ -68,6 +74,9 @@ ON public.data_source (platform, name);
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_athlete_session_stint_athlete_session
 ON public.athlete_session_stint (athlete_id, session_id);
 
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_coug_score_athlete_session_scoring_version_type
+ON public.coug_score (athlete_id, session_id, scoring_version_id, score_type);
+
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_coug_score_athlete_session_weight_type
 ON public.coug_score (athlete_id, session_id, weight_version_id, score_type);
 
@@ -88,6 +97,5 @@ ON public.athlete_event (
 -- ------------------------------------------------------------
 -- 3. Notes
 -- ------------------------------------------------------------
--- weight_version_id currently references one metric_weight row, even though a
--- version such as trial_1 spans many metric_weight rows. Long term, consider a
--- separate scoring_version table and let coug_score reference that instead.
+-- scoring_version_id references one stable scoring contract. Individual
+-- metric_weight rows reference the same scoring_version record.

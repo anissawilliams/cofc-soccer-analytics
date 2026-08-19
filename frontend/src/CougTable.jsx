@@ -29,6 +29,7 @@ const PEAK_COLOR = "#CFB53B";
 const SP_COLOR   = "#8a7a55";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const CURRENT_SEASON = "2026";
 
 async function apiFetch(path) {
   const res = await fetch(`${API}${path}`);
@@ -350,8 +351,8 @@ function PlayerPanel({ player, history }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function CougTable() {
   const [tab, setTab]                   = useState("season");
-  const [season, setSeason]             = useState("2025");
-  const [seasons, setSeasons]           = useState(["2025"]);
+  const [season, setSeason]             = useState("");
+  const [seasons, setSeasons]           = useState([]);
   const [matches, setMatches]           = useState([]);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [seasonData, setSeasonData]     = useState([]);
@@ -365,8 +366,17 @@ export default function CougTable() {
 
   useEffect(() => {
     apiFetch("/api/seasons")
-      .then(s => { setSeasons(s); setSeason(s[0] || "2025"); })
-      .catch(() => setSeasons(["2025"]));
+      .then(items => {
+        const available = [...new Set(items.map(String).filter(Boolean))]
+          .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+        const knownSeasons = available.length ? available : [CURRENT_SEASON];
+        setSeasons(knownSeasons);
+        setSeason(knownSeasons[0]);
+      })
+      .catch(() => {
+        setSeasons([CURRENT_SEASON]);
+        setSeason(CURRENT_SEASON);
+      });
   }, []);
 
   useEffect(() => {
@@ -472,7 +482,7 @@ export default function CougTable() {
           border: `1px solid ${T.gold}44`,
           color: T.gold, fontWeight: 700,
         }}>
-          {seasons.map(s => <option key={s} value={s}>{s} Season</option>)}
+          {seasons.map(item => <option key={item} value={item}>{item} Season</option>)}
         </select>
       </div>
 
