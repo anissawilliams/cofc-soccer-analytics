@@ -138,6 +138,14 @@ CREATE TABLE metric_definition (
 -- ============================================================
 -- METRIC_WEIGHT  (versioned)
 -- ============================================================
+CREATE TABLE scoring_version (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version             VARCHAR(50) NOT NULL UNIQUE,
+    effective_from      TIMESTAMP,
+    notes               TEXT,
+    created_at          TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE metric_weight (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     metric_id           UUID NOT NULL REFERENCES metric_definition(id),
@@ -145,6 +153,7 @@ CREATE TABLE metric_weight (
     weight_type         VARCHAR(20) DEFAULT 'match',   -- match | season | cumulative
     is_multiplier       BOOLEAN DEFAULT FALSE,         -- true = multiplier, false = additive
     version             VARCHAR(20) NOT NULL,
+    scoring_version_id  UUID NOT NULL REFERENCES scoring_version(id),
     coach_notes         TEXT,
     effective_from      TIMESTAMP DEFAULT NOW(),
     effective_to        TIMESTAMP,
@@ -263,7 +272,8 @@ CREATE TABLE coug_score (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     athlete_id          UUID NOT NULL REFERENCES athlete(id),
     session_id          UUID NOT NULL REFERENCES session(id),
-    weight_version_id   UUID NOT NULL REFERENCES metric_weight(id),
+    weight_version_id   UUID REFERENCES metric_weight(id), -- legacy compatibility FK
+    scoring_version_id  UUID NOT NULL REFERENCES scoring_version(id),
     aset_score          FLOAT DEFAULT 0,
     peak_score          FLOAT DEFAULT 0,
     set_piece_score     FLOAT DEFAULT 0,
@@ -368,9 +378,13 @@ ON c.code = m.category_code;
 -- ============================================================
 -- SEED — METRIC WEIGHTS (version: trial_1)
 -- ============================================================
-INSERT INTO metric_weight (metric_id, weight, weight_type, is_multiplier, version, coach_notes, effective_from)
-SELECT d.id, w.weight, 'match', w.is_multiplier, 'trial_1', w.coach_notes, NOW()
+INSERT INTO scoring_version (version, effective_from, notes)
+VALUES ('trial_1', NOW(), 'Initial coach-confirmed scoring weights');
+
+INSERT INTO metric_weight (metric_id, weight, weight_type, is_multiplier, version, scoring_version_id, coach_notes, effective_from)
+SELECT d.id, w.weight, 'match', w.is_multiplier, 'trial_1', sv.id, w.coach_notes, NOW()
 FROM metric_definition d
+JOIN scoring_version sv ON sv.version = 'trial_1'
 JOIN (VALUES
     ('Possession Regain',                0.25,  FALSE, 'Attacking half=0.5, counter press=0.25, run of play=0.25 — sub-weighting via raw_value_context'),
     ('Successful Counter Press (<5s)',   0.2,   FALSE, 'Per action'),

@@ -367,13 +367,14 @@ export default function CougTable() {
     apiFetch("/api/seasons")
       .then(payload => {
         // Accept the old array response during rolling deployments.
-        const available = Array.isArray(payload) ? payload : payload.seasons;
-        const active = Array.isArray(payload)
+        const available = Array.isArray(payload) ? payload : payload.seasons || [];
+        const configured = Array.isArray(payload)
           ? CONFIGURED_ACTIVE_SEASON
           : payload.active_season || CONFIGURED_ACTIVE_SEASON;
-        const normalized = Array.from(new Set([active, ...(available || [])]));
+        const normalized = Array.from(new Set([configured, ...available].map(String).filter(Boolean)))
+          .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
         setSeasons(normalized);
-        setSeason(active);
+        setSeason(normalized[0]);
       })
       .catch(() => {
         setSeasons([CONFIGURED_ACTIVE_SEASON]);
@@ -484,7 +485,7 @@ export default function CougTable() {
           border: `1px solid ${T.gold}44`,
           color: T.gold, fontWeight: 700,
         }}>
-          {seasons.map(s => <option key={s} value={s}>{s} Season</option>)}
+          {seasons.map(item => <option key={item} value={item}>{item} Season</option>)}
         </select>
       </div>
 

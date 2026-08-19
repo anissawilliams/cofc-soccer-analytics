@@ -117,6 +117,8 @@ def parse_one_match(
     print(f"      Source: {sportscode_source.origin} | {sportscode_file}")
     wyscout_data = parse_sportscode(sportscode_file, roster_path=roster_path)
     df_players = pd.DataFrame(wyscout_data["player_events"])
+    df_all_players = pd.DataFrame(wyscout_data["all_player_events"])
+    df_team_events = pd.DataFrame(wyscout_data["team_events"])
     n_players = df_players["name"].nunique()
     n_events = len(df_players)
     print(f"      {n_events} player events | {n_players} players")
@@ -127,11 +129,21 @@ def parse_one_match(
     df_players.to_csv(players_path, index=False)
     print(f"      ✅ {players_path.name}")
 
+    all_players_path = output_dir / f"{slug}_all_player_events.csv"
+    df_all_players.to_csv(all_players_path, index=False)
+    print(f"      ✅ {all_players_path.name} (raw analytics stream)")
+
+    team_events_path = output_dir / f"{slug}_team_events.csv"
+    df_team_events.to_csv(team_events_path, index=False)
+    print(f"      ✅ {team_events_path.name} (raw analytics stream)")
+
     print()
     print("=" * 55)
     print(f"DONE — {slug}")
     print(f"  Players parsed:    {n_players}")
     print(f"  Events:            {n_events}")
+    print(f"  All player events: {len(df_all_players)}")
+    print(f"  Team events:       {len(df_team_events)}")
     print(f"  Files saved to:    {output_dir}")
     print("=" * 55)
 
@@ -140,6 +152,8 @@ def parse_one_match(
         "status": "OK",
         "players": n_players,
         "events": n_events,
+        "all_player_events": len(df_all_players),
+        "team_events": len(df_team_events),
         "output": str(output_dir),
     }
 

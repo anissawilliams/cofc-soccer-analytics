@@ -4,6 +4,7 @@ import {
   CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart
 } from 'recharts';
 const CougTable = lazy(() => import('./CougTable.jsx'));
+const MatchStory = lazy(() => import('./MatchStory.jsx'));
 const StaffPortal = lazy(() => import('./StaffPortal.jsx'));
 
 const slideDownStyle = `
@@ -62,6 +63,7 @@ function PendingCard({ title, message }) {
 function TabNav({ active, onChange }) {
   const tabs = [
     { id: 'analytics', label: 'Team Analytics' },
+    { id: 'story',     label: 'Match Story' },
     { id: 'coug',      label: 'COUG Table' },
     { id: 'coug2',     label: 'COUG Table v2' },
     { id: 'staff',     label: 'Staff' },
@@ -326,7 +328,7 @@ import COUGDashboardLegacy from './coug_dashboard.jsx';
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState('coug2');
-  const darkSurface = tab === 'coug2';
+  const darkSurface = tab === 'coug2' || tab === 'story';
 
   return (
     <div style={{ backgroundColor: darkSurface ? '#0a0806' : colors.background, minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -338,6 +340,11 @@ export default function App() {
         <TabNav active={tab} onChange={setTab} />
       </div>
       {tab === 'analytics' && <AnalyticsDashboard />}
+      {tab === 'story' && (
+        <Suspense fallback={<SectionLoader label="Loading Match Story..." />}>
+          <MatchStory />
+        </Suspense>
+      )}
       {tab === 'coug'      && <div style={{ padding: '2rem' }}><COUGDashboardLegacy /></div>}
       {tab === 'coug2' && (
         <Suspense fallback={<SectionLoader label="Loading COUG Table..." />}>

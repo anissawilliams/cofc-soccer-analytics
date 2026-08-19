@@ -34,6 +34,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 import ast
+import unicodedata
 from collections import defaultdict
 
 import pandas as pd
@@ -88,7 +89,9 @@ def get_client() -> Client:
 
 def normalize_name(name: str) -> str:
     """Lowercase, strip extra whitespace."""
-    return " ".join(name.strip().lower().split())
+    normalized = unicodedata.normalize("NFKD", name)
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return " ".join(normalized.strip().lower().split())
 
 
 def fuzzy_match_athlete(name: str, athletes: list[dict]) -> tuple[dict | None, int]:
@@ -845,6 +848,8 @@ def load_wyscout_player_events(
                     "category": category,
                     "all_labels": labels,
                     "raw_code": row.get("raw_code"),
+                    "half": int(row["half"]) if pd.notna(row.get("half")) else None,
+                    "match_minute": round(float(row["match_minute"]), 4) if pd.notna(row.get("match_minute")) else None,
                 },
             }
 

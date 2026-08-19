@@ -250,6 +250,12 @@ def get_coug_scores_with_minutes(session_id: str, season: Optional[str] = None):
     return db.get_coug_scores_with_minutes(session_id)
 
 
+@app.get("/api/match-story/{session_id}")
+def get_match_story(session_id: str, weight_version: str = "trial_1"):
+    """Chronological player-event story for one match session."""
+    return db.get_match_story(session_id, weight_version)
+
+
 @app.get("/api/coug-leaderboard-with-minutes/{season}")
 @ttl_cached()
 def get_coug_leaderboard_with_minutes(season: str):

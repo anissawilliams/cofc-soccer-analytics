@@ -6,6 +6,9 @@ Purpose: migrate the CofC Soccer Analytics pipeline toward a cleaner,
 maintainable lakehouse-style architecture while preserving the score logic and
 traceability that make COUG Table values defensible.
 
+For the operational 2026 roster and match execution sequence, see
+[`databricks_2026_execution_runbook.md`](databricks_2026_execution_runbook.md).
+
 ## Recommendation
 
 Moving toward Databricks is the right direction if the goal is maintainability,
@@ -403,4 +406,3 @@ Known gaps
 ```
 
 The final score matters. The defensible trail matters more.
-
