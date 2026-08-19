@@ -7,7 +7,13 @@ from pathlib import Path
 INGESTION_DIR = Path(__file__).resolve().parents[1] / "pipeline" / "ingestion"
 sys.path.insert(0, str(INGESTION_DIR))
 
-from prepare_match_intake import build_intake_report, merge_team_event_pair, profile_xml  # noqa: E402
+from prepare_match_intake import (  # noqa: E402
+    build_intake_report,
+    discover_exports,
+    merge_team_event_pair,
+    profile_xml,
+    validate_scoring_candidate,
+)
 
 
 def team_xml(team, rows):
@@ -69,8 +75,24 @@ class MatchIntakeTests(unittest.TestCase):
         report, events = build_intake_report(self.root, "2026-08-20_opponent")
         self.assertTrue(report["analytics"]["ready"])
         self.assertFalse(report["scoring"]["ready"])
-        self.assertIn("do not publish", report["scoring"]["reason"])
         self.assertEqual(len(events), 2)
+
+    def test_scoring_candidate_is_roster_validated_before_ready(self):
+        scoring_xml = """<root><instances>
+          <instance><code>Offsets</code><start>0</start><end>0</end><label><text>First half start</text></label></instance>
+          <instance><code>(3) J. Jordheim</code><start>60</start><end>62</end><label><text>Plus</text></label></instance>
+          <instance><code>(7) Opponent Player</code><start>90</start><end>92</end><label><text>Minus</text></label></instance>
+        </instances></root>"""
+        (self.root / "random.xml").write_text(scoring_xml, encoding="utf-8")
+        roster = self.root / "roster.csv"
+        roster.write_text("number,name\n3,J. Jordheim\n", encoding="utf-8")
+
+        status, parsed = validate_scoring_candidate(discover_exports(self.root), roster)
+
+        self.assertTrue(status["ready"])
+        self.assertEqual(status["scoring_events"], 1)
+        self.assertEqual(status["all_player_events"], 2)
+        self.assertEqual([event["name"] for event in parsed["player_events"]], ["J. Jordheim"])
 
 
 if __name__ == "__main__":

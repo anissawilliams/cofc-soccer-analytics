@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from parse_wyscout import read_xml
+from parse_wyscout import parse_sportscode, read_xml
 from source_paths import get_source_paths
 
 
@@ -232,9 +232,69 @@ def write_events(path: Path, events: list[dict]) -> None:
             })
 
 
+def write_rows(path: Path, rows: list[dict]) -> None:
+    """Write parser dictionaries without requiring pandas."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = []
+    for row in rows:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        if not fieldnames:
+            return
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({
+                key: json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else value
+                for key, value in row.items()
+            })
+
+
+def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) -> tuple[dict, dict | None]:
+    scoring_files = [profile for profile in profiles if profile.kind == "scoring_event_xml"]
+    if not scoring_files:
+        return {
+            "ready": False,
+            "reason": "missing player-coded Sportscode XML; do not publish COUG scores",
+            "candidate_files": [],
+        }, None
+    if len(scoring_files) != 1:
+        return {
+            "ready": False,
+            "reason": f"found {len(scoring_files)} scoring candidates; select one exact match export",
+            "candidate_files": [profile.path.name for profile in scoring_files],
+        }, None
+    if not roster_path.exists():
+        return {
+            "ready": False,
+            "reason": f"player-coded XML found but roster is missing: {roster_path}",
+            "candidate_files": [scoring_files[0].path.name],
+        }, None
+
+    parsed = parse_sportscode(scoring_files[0].path, roster_path=roster_path)
+    player_events = parsed["player_events"]
+    roster_players = {event["name"] for event in player_events}
+    status = {
+        "ready": bool(player_events),
+        "reason": (
+            "roster-filtered scoring parse passed; review counts before loading"
+            if player_events
+            else "player-coded XML parsed but no events matched the roster"
+        ),
+        "candidate_files": [scoring_files[0].path.name],
+        "roster": str(roster_path),
+        "roster_players": len(roster_players),
+        "scoring_events": len(player_events),
+        "all_player_events": len(parsed["all_player_events"]),
+        "team_events": len(parsed["team_events"]),
+    }
+    return status, parsed
+
+
 def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
     profiles = discover_exports(input_dir)
-    scoring_files = [profile for profile in profiles if profile.kind == "scoring_event_xml"]
     team_profiles = [profile for profile in profiles if profile.kind == "team_event_xml"]
     distinct_teams = {profile.team for profile in team_profiles if profile.team}
 
@@ -249,14 +309,7 @@ def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
     report = {
         "slug": slug,
         "input_dir": str(input_dir),
-        "scoring": {
-            "ready": bool(scoring_files),
-            "reason": (
-                "player-coded XML with period markers found"
-                if scoring_files
-                else "missing player-coded Sportscode XML; do not publish COUG scores"
-            ),
-        },
+        "scoring": {"ready": False, "reason": "not yet roster-validated"},
         "analytics": {"ready": analytics_ready, "reason": analytics_reason},
         "files": [
             {
@@ -281,10 +334,16 @@ def main() -> None:
     parser.add_argument("--season", required=True)
     parser.add_argument("--slug", required=True)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--roster", type=Path, default=None, help="Season roster CSV used for scoring validation")
     parser.add_argument("--dry-run", action="store_true", help="Inspect and parse in memory without writing files")
     args = parser.parse_args()
 
-    report, events = build_intake_report(args.input_dir.resolve(), args.slug)
+    input_dir = args.input_dir.resolve()
+    report, events = build_intake_report(input_dir, args.slug)
+    profiles = discover_exports(input_dir)
+    roster_path = args.roster or (Path(__file__).resolve().parent / f"roster_{args.season}.csv")
+    scoring_status, scoring_data = validate_scoring_candidate(profiles, roster_path.resolve())
+    report["scoring"] = scoring_status
     print(json.dumps(report, indent=2, sort_keys=True))
     if args.dry_run:
         return
@@ -297,6 +356,10 @@ def main() -> None:
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     if events:
         write_events(output_dir / f"{args.slug}_canonical_team_events.csv", events)
+    if scoring_data:
+        write_rows(output_dir / f"{args.slug}_players.csv", scoring_data["player_events"])
+        write_rows(output_dir / f"{args.slug}_all_player_events.csv", scoring_data["all_player_events"])
+        write_rows(output_dir / f"{args.slug}_sportscode_team_events.csv", scoring_data["team_events"])
     print(f"Prepared intake outputs: {output_dir}")
 
 

@@ -74,12 +74,15 @@ separate from team-analysis readiness:
   --input-dir /path/to/one-match-exports \
   --season 2026 \
   --slug 2026-08-20_davidson \
+  --roster pipeline/ingestion/roster_2026.csv \
   --dry-run
 ```
 
 Remove `--dry-run` only after reviewing the report. This writes a source report
 and, when two complementary team XMLs are present, a deduplicated canonical
-team-event CSV under the parsed outputs directory. It never writes to Supabase.
+team-event CSV under the parsed outputs directory. When one player-coded XML
+and a valid roster are present, it also writes roster-filtered scoring events
+plus the complete raw player/team streams. It never writes to Supabase.
 
 `scoring.ready` must be true before the COUG scoring workflow begins. Paired
 team-event XMLs can power Match Flow but cannot replace the player-coded
