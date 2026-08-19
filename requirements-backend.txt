@@ -1,0 +1,6 @@
+# Production FastAPI service only. Keep data-science and retired Streamlit
+# packages out of the web-service image.
+fastapi>=0.110.0,<1.0
+python-dotenv>=1.0.0,<2.0
+supabase>=2.0.0,<3.0
+uvicorn>=0.29.0,<1.0

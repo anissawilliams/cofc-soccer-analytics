@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: cofc-soccer-analytics-api
+    runtime: python
+    plan: free
+    region: virginia
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: pip install -r requirements-backend.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: COFC_ACTIVE_SEASON
+        value: "2026"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
