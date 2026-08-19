@@ -14,6 +14,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 import sys
 from pathlib import Path
 from typing import Optional
@@ -206,18 +207,25 @@ def get_formations(season: Optional[str] = None):
 def health():
     """Quick connectivity check."""
     try:
+        # Query Supabase directly so a swallowed read-model error cannot make a
+        # disconnected deployment report itself as healthy.
+        db.get_client().table("athlete").select("id").limit(1).execute()
         players = db.get_players()
         return {
             "status": "ok",
             "supabase": "connected",
             "players_loaded": len(players),
         }
-    except Exception as e:
-        return {
-            "status": "error",
-            "supabase": "disconnected",
-            "detail": str(e)
-        }
+    except Exception as exc:
+        print(f"[health] Supabase connectivity error: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "supabase": "disconnected",
+                "detail": type(exc).__name__,
+            },
+        )
 
 
 # ── CougTable v2 endpoints ────────────────────────────────────────────────────
