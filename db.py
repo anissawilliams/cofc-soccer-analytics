@@ -587,6 +587,7 @@ def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
             minutes  = mins_off - mins_on
 
             result.append({
+                "session_id":      sid,
                 "session_date":    s.get("session_date"),
                 "opponent":        match.get("opponent", s.get("competition", "Unknown")),
                 "result":          match.get("result"),
@@ -665,6 +666,8 @@ def get_player_coug_trace(
         })
 
         weights_by_metric = {}
+        rules_by_metric = {}
+        rules_by_metric_source = {}
         if metric_ids:
             weight_res = client.table("metric_weight").select(
                 "metric_id, weight, weight_type, is_multiplier, version, coach_notes"
@@ -673,6 +676,29 @@ def get_player_coug_trace(
                 row["metric_id"]: row
                 for row in (weight_res.data or [])
             }
+            try:
+                rule_res = client.table("metric_scoring_rule").select(
+                    "metric_id, source_platform, source_event_label, outcome_rule, "
+                    "eligible_positions, excluded_positions, minimum_event_count, "
+                    "aggregation_rule, raw_value_per_event, review_status, "
+                    "relationship_type, related_metric_id, coach_explanation, "
+                    "technical_notes"
+                ).eq("is_active", True).is_("effective_to", "null").in_(
+                    "metric_id", metric_ids
+                ).execute()
+                rules_by_metric = {
+                    row["metric_id"]: row
+                    for row in (rule_res.data or [])
+                }
+                rules_by_metric_source = {
+                    (row["metric_id"], row.get("source_event_label")): row
+                    for row in (rule_res.data or [])
+                    if row.get("source_event_label")
+                }
+            except Exception:
+                # Backward-compatible until the schema migration is applied.
+                rules_by_metric = {}
+                rules_by_metric_source = {}
 
         summary = empty["summary"].copy()
         events = []
@@ -686,6 +712,11 @@ def get_player_coug_trace(
             category = metric.get("category") or {}
             metric_id = metric.get("id")
             weight = weights_by_metric.get(metric_id, {})
+            raw_value_context = row.get("raw_value_context") or {}
+            source_event_label = raw_value_context.get("wyscout_label")
+            scoring_rule = rules_by_metric_source.get(
+                (metric_id, source_event_label)
+            ) or rules_by_metric.get(metric_id, {})
             raw_value = row.get("raw_value")
             raw_value = 1 if raw_value is None else raw_value
             weight_value = weight.get("weight")
@@ -725,6 +756,17 @@ def get_player_coug_trace(
                 "is_multiplier": weight.get("is_multiplier"),
                 "weight_notes": weight.get("coach_notes"),
                 "metric_notes": metric.get("notes"),
+                "coach_explanation": scoring_rule.get("coach_explanation"),
+                "technical_notes": scoring_rule.get("technical_notes"),
+                "review_status": scoring_rule.get("review_status"),
+                "relationship_type": scoring_rule.get("relationship_type"),
+                "related_metric_id": scoring_rule.get("related_metric_id"),
+                "source_event_label": scoring_rule.get("source_event_label"),
+                "outcome_rule": scoring_rule.get("outcome_rule"),
+                "eligible_positions": scoring_rule.get("eligible_positions") or [],
+                "excluded_positions": scoring_rule.get("excluded_positions") or [],
+                "minimum_event_count": scoring_rule.get("minimum_event_count"),
+                "aggregation_rule": scoring_rule.get("aggregation_rule"),
                 "collection_method": row.get("collection_method") or metric.get("collection_method"),
                 "manual_tag_required": metric.get("manual_tag_required"),
                 "manually_tagged": row.get("manually_tagged"),
@@ -734,7 +776,7 @@ def get_player_coug_trace(
                 "source_type": (row.get("source") or {}).get("source_type"),
                 "source_priority": (row.get("source") or {}).get("source_priority"),
                 "source_file_path": (row.get("source") or {}).get("file_path"),
-                "raw_value_context": row.get("raw_value_context") or {},
+                "raw_value_context": raw_value_context,
                 "tag_notes": row.get("tag_notes"),
             })
 

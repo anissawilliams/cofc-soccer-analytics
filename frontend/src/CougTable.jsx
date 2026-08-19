@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { cachedApiFetch } from "./apiCache";
 
 // ─── Design tokens — Cougars identity ────────────────────────────────────────
 const T = {
@@ -29,12 +30,10 @@ const PEAK_COLOR = "#CFB53B";
 const SP_COLOR   = "#8a7a55";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-const CURRENT_SEASON = "2026";
+const CONFIGURED_ACTIVE_SEASON = import.meta.env.VITE_ACTIVE_SEASON || "2026";
 
 async function apiFetch(path) {
-  const res = await fetch(`${API}${path}`);
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
-  return res.json();
+  return cachedApiFetch(API, path);
 }
 
 function per90(score, minutes) {
@@ -351,8 +350,8 @@ function PlayerPanel({ player, history }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function CougTable() {
   const [tab, setTab]                   = useState("season");
-  const [season, setSeason]             = useState("");
-  const [seasons, setSeasons]           = useState([]);
+  const [season, setSeason]             = useState(CONFIGURED_ACTIVE_SEASON);
+  const [seasons, setSeasons]           = useState([CONFIGURED_ACTIVE_SEASON]);
   const [matches, setMatches]           = useState([]);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [seasonData, setSeasonData]     = useState([]);
@@ -366,16 +365,20 @@ export default function CougTable() {
 
   useEffect(() => {
     apiFetch("/api/seasons")
-      .then(items => {
-        const available = [...new Set(items.map(String).filter(Boolean))]
+      .then(payload => {
+        // Accept the old array response during rolling deployments.
+        const available = Array.isArray(payload) ? payload : payload.seasons || [];
+        const configured = Array.isArray(payload)
+          ? CONFIGURED_ACTIVE_SEASON
+          : payload.active_season || CONFIGURED_ACTIVE_SEASON;
+        const normalized = Array.from(new Set([configured, ...available].map(String).filter(Boolean)))
           .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-        const knownSeasons = available.length ? available : [CURRENT_SEASON];
-        setSeasons(knownSeasons);
-        setSeason(knownSeasons[0]);
+        setSeasons(normalized);
+        setSeason(normalized[0]);
       })
       .catch(() => {
-        setSeasons([CURRENT_SEASON]);
-        setSeason(CURRENT_SEASON);
+        setSeasons([CONFIGURED_ACTIVE_SEASON]);
+        setSeason(CONFIGURED_ACTIVE_SEASON);
       });
   }, []);
 
@@ -402,7 +405,7 @@ export default function CougTable() {
     setLoading(true);
     // Use session_id (from the match object) not match_id
     const sid = selectedMatch.session_id || selectedMatch.match_id;
-    apiFetch(`/api/coug-scores-with-minutes?session_id=${sid}`)
+    apiFetch(`/api/coug-scores-with-minutes?session_id=${sid}&season=${season}`)
       .then(d => { setMatchData(d); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }, [selectedMatch, tab]);

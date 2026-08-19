@@ -30,6 +30,7 @@ def write_opponent_shells(
     schedule: pd.DataFrame,
     output_root: Path,
     org_short_name: str,
+    force: bool = False,
 ) -> list[OpponentShellPaths]:
     paths: list[OpponentShellPaths] = []
     for _, row in schedule.sort_values("match_date").iterrows():
@@ -46,13 +47,13 @@ def write_opponent_shells(
             qa_report=match_dir / "qa_report.md",
         )
 
-        _write(shell_paths.executive_brief, _executive_brief(row, org_short_name))
-        _write(shell_paths.data_profile, _data_profile(row, org_short_name))
-        _write(shell_paths.simulation, _simulation(row, org_short_name))
-        _write(shell_paths.set_pieces, _set_pieces(row, org_short_name))
-        _write(shell_paths.match_day_observation, _match_day_observation(row, org_short_name))
-        _write(shell_paths.post_match_validation, _post_match_validation(row, org_short_name))
-        _write(shell_paths.qa_report, _qa_report(row, shell_paths))
+        _write(shell_paths.executive_brief, _executive_brief(row, org_short_name), force)
+        _write(shell_paths.data_profile, _data_profile(row, org_short_name), force)
+        _write(shell_paths.simulation, _simulation(row, org_short_name), force)
+        _write(shell_paths.set_pieces, _set_pieces(row, org_short_name), force)
+        _write(shell_paths.match_day_observation, _match_day_observation(row, org_short_name), force)
+        _write(shell_paths.post_match_validation, _post_match_validation(row, org_short_name), force)
+        _write(shell_paths.qa_report, _qa_report(row, shell_paths), force)
         paths.append(shell_paths)
     return paths
 
@@ -424,7 +425,9 @@ def _context(row: pd.Series) -> dict[str, str]:
     }
 
 
-def _write(path: Path, content: str) -> None:
+def _write(path: Path, content: str, force: bool) -> None:
+    if path.exists() and not force:
+        return
     path.write_text(content, encoding="utf-8")
 
 

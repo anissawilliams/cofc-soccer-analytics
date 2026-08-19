@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Cell,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { cachedApiFetch } from './apiCache';
 
 const T = {
   garnet: '#800000',
@@ -14,9 +15,7 @@ const T = {
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function apiFetch(path) {
-  const res = await fetch(`${API}${path}`);
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
-  return res.json();
+  return cachedApiFetch(API, path);
 }
 
 const UPCOMING_MATCHES_2026 = [
@@ -171,18 +170,22 @@ function PlayerDevelopmentTrace() {
   const [players, setPlayers] = useState([]);
   const [selectedAthleteId, setSelectedAthleteId] = useState('');
   const [trace, setTrace] = useState(null);
+  const [matchHistory, setMatchHistory] = useState([]);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [loadingTrace, setLoadingTrace] = useState(false);
   const [error, setError] = useState('');
+  const [showScoringReference, setShowScoringReference] = useState(false);
 
   useEffect(() => {
     apiFetch('/api/seasons')
       .then(data => {
-        const available = [...new Set(data.map(String).filter(Boolean))]
+        const available = Array.isArray(data) ? data : data.seasons || [];
+        const activeSeason = Array.isArray(data) ? available[0] : data.active_season;
+        const normalized = Array.from(new Set([activeSeason, ...available].map(String).filter(Boolean)))
           .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-        const knownSeasons = available.length ? available : ['2026'];
-        setSeasons(knownSeasons);
-        setSeason(knownSeasons[0]);
+        const seasonsToUse = normalized.length ? normalized : ['2026'];
+        setSeasons(seasonsToUse);
+        setSeason(seasonsToUse[0]);
       })
       .catch(() => {
         setSeasons(['2026']);
@@ -213,9 +216,13 @@ function PlayerDevelopmentTrace() {
     }
     setLoadingTrace(true);
     setError('');
-    apiFetch(`/api/player-coug-trace/${selectedAthleteId}?season=${season}`)
-      .then(data => {
-        setTrace(data);
+    Promise.all([
+      apiFetch(`/api/player-coug-trace/${selectedAthleteId}?season=${season}`),
+      apiFetch(`/api/player-match-history/${selectedAthleteId}?season=${season}`),
+    ])
+      .then(([traceData, matchData]) => {
+        setTrace(traceData);
+        setMatchHistory(matchData);
         setLoadingTrace(false);
       })
       .catch(e => {
@@ -225,7 +232,14 @@ function PlayerDevelopmentTrace() {
   }, [selectedAthleteId, season]);
 
   const selectedPlayer = players.find(player => player.athlete_id === selectedAthleteId);
-  const eventGroups = useMemo(() => groupEvents(trace?.events || []), [trace]);
+  const matchGroups = useMemo(
+    () => groupEventsByMatch(trace?.events || [], matchHistory),
+    [trace, matchHistory],
+  );
+  const cougTableTotal = Number(selectedPlayer?.total_score || 0);
+  const eventLedgerTotal = Number(trace?.summary?.total || 0);
+  const rollupDifference = Math.abs(cougTableTotal - eventLedgerTotal);
+  const rollupAligned = rollupDifference < 0.01;
 
   return (
     <div style={styles.developmentShell}>
@@ -276,11 +290,107 @@ function PlayerDevelopmentTrace() {
             <TraceTile label="Minutes" value={selectedPlayer.minutes_played} suffix="'" />
           </div>
 
-          <div style={styles.traceLayout}>
-            <div style={styles.tracePanel}>
+          <div style={styles.rollupGuide}>
+            <div style={styles.rollupGuideText}>
+              <strong>How this rolls into the COUG table</strong>
+              <span>Scoring event → category contribution → match contribution → season COUG total</span>
+            </div>
+            <div style={rollupAligned ? styles.rollupAligned : styles.rollupReview}>
+              <span>COUG table {formatScore(cougTableTotal)}</span>
+              <span>Event ledger {formatScore(eventLedgerTotal)}</span>
+              <strong>{rollupAligned ? 'Aligned' : `Review ${formatScore(rollupDifference)} difference`}</strong>
+            </div>
+          </div>
+
+          <div style={styles.tracePanel}>
+            <div style={styles.panelHeader}>
+              <div>
+                <h3 style={styles.panelTitle}>Category Totals From Events</h3>
+                <span style={styles.panelMeta}>
+                  {trace?.summary?.weighted_event_count ?? 0} weighted rows
+                </span>
+              </div>
+            </div>
+            <div style={styles.categoryRows}>
+              {['aset', 'peak', 'set_piece', 'positional', 'load', 'team'].map(bucket => (
+                <div key={bucket} style={styles.categoryRow}>
+                  <span>{formatBucket(bucket)}</span>
+                  <strong>{formatScore(trace?.summary?.[bucket] || 0)}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={styles.positionalNote}>
+              <strong>What is Positional?</strong>
+              <span>
+                Role-specific, event-derived metrics assigned through the active metric definitions and weights.
+                This screen reports the official calculated value; it does not calculate a separate positional score.
+              </span>
+            </div>
+          </div>
+
+          <div style={styles.tracePanel}>
+            <div style={styles.panelHeader}>
+              <div>
+                <h3 style={styles.panelTitle}>Match Contributions</h3>
+                <span style={styles.panelMeta}>Open a match to review its event ledger</span>
+              </div>
+              <span style={styles.panelMeta}>{matchGroups.length} matches</span>
+            </div>
+
+            {(trace?.events || []).length === 0 ? (
+              <p style={styles.muted}>
+                No player-level event rows are loaded yet. The panel is ready for 2026 once athlete_event provenance is populated.
+              </p>
+            ) : (
+              <div style={styles.matchLedger}>
+                {matchGroups.map((match, index) => (
+                  <details key={match.sessionId} open={index === 0} style={styles.matchDisclosure}>
+                    <summary style={styles.matchSummary}>
+                      <div>
+                        <strong style={styles.matchTitle}>{match.label}</strong>
+                        <span style={styles.matchDate}>{match.dateLabel}</span>
+                      </div>
+                      <div style={styles.matchSummaryStats}>
+                        <span>{match.events.length} events</span>
+                        <strong>{formatScore(match.score)}</strong>
+                      </div>
+                    </summary>
+                    <div style={styles.matchEventBody}>
+                      {Object.entries(groupEvents(match.events)).map(([bucket, events]) => (
+                        <div key={bucket}>
+                          <div style={{ ...styles.ledgerBucket, color: bucketColor(bucket) }}>
+                            {formatBucket(bucket)} ({events.length})
+                          </div>
+                          {events.map(event => <EventRow key={event.event_id} event={event} />)}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={styles.referenceFooter}>
+            <button
+              type="button"
+              onClick={() => setShowScoringReference(current => !current)}
+              style={styles.referenceLink}
+              aria-expanded={showScoringReference}
+              aria-controls="scoring-reference"
+            >
+              {showScoringReference ? 'Hide scoring reference' : 'View included event families'}
+            </button>
+            <span>Reference only · active scoring configuration</span>
+          </div>
+
+          {showScoringReference && (
+            <div id="scoring-reference" style={styles.referencePanel}>
               <div style={styles.panelHeader}>
-                <h3 style={styles.panelTitle}>Included Event Families</h3>
-                <span style={styles.panelMeta}>Trial 1 weights</span>
+                <div>
+                  <h3 style={styles.panelTitle}>Included Event Families</h3>
+                  <span style={styles.panelMeta}>Reference from the active scoring configuration</span>
+                </div>
               </div>
               <div style={styles.ruleGrid}>
                 {(trace?.score_rules || []).map(rule => (
@@ -294,48 +404,7 @@ function PlayerDevelopmentTrace() {
                 ))}
               </div>
             </div>
-
-            <div style={styles.tracePanel}>
-              <div style={styles.panelHeader}>
-                <h3 style={styles.panelTitle}>Category Totals From Events</h3>
-                <span style={styles.panelMeta}>
-                  {trace?.summary?.weighted_event_count ?? 0} weighted rows
-                </span>
-              </div>
-              <div style={styles.categoryRows}>
-                {['aset', 'peak', 'set_piece', 'positional', 'load', 'team'].map(bucket => (
-                  <div key={bucket} style={styles.categoryRow}>
-                    <span>{formatBucket(bucket)}</span>
-                    <strong>{formatScore(trace?.summary?.[bucket] || 0)}</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.tracePanel}>
-            <div style={styles.panelHeader}>
-              <h3 style={styles.panelTitle}>Event Ledger</h3>
-              <span style={styles.panelMeta}>Raw value x weight = score</span>
-            </div>
-
-            {(trace?.events || []).length === 0 ? (
-              <p style={styles.muted}>
-                No player-level event rows are loaded yet. The panel is ready for 2026 once athlete_event provenance is populated.
-              </p>
-            ) : (
-              <div style={styles.eventLedger}>
-                {Object.entries(eventGroups).map(([bucket, events]) => (
-                  <div key={bucket}>
-                    <div style={{ ...styles.ledgerBucket, color: bucketColor(bucket) }}>
-                      {formatBucket(bucket)} ({events.length})
-                    </div>
-                    {events.map(event => <EventRow key={event.event_id} event={event} />)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </>
       )}
     </div>
@@ -356,7 +425,12 @@ function TraceTile({ label, value, tone, suffix = '' }) {
 }
 
 function EventRow({ event }) {
-  const reviewNeeded = event.manual_tag_required || !event.coach_confirmed || event.weight == null;
+  const reviewStatuses = new Set(['needs_confirmation', 'proxy_review', 'duplicate', 'unreviewed']);
+  const reviewNeeded = event.review_status
+    ? reviewStatuses.has(event.review_status) || event.weight == null
+    : event.manual_tag_required || !event.coach_confirmed || event.weight == null;
+  const explanation = event.coach_explanation || formatContributionExplanation(event);
+  const technicalNote = event.technical_notes || event.metric_notes || event.weight_notes;
   return (
     <div style={styles.eventRow}>
       <div>
@@ -367,10 +441,16 @@ function EventRow({ event }) {
           {reviewNeeded && <span style={styles.reviewChip}>Review</span>}
         </div>
         <div style={styles.eventMeta}>
-          {event.session_date || 'No date'} · {formatTime(event.event_time)} · {event.source_platform || event.source_name || 'source pending'} · {event.collection_method || 'method pending'}
+          {event.session_date || 'No date'} · Match time {formatTime(event.event_time)} · {event.source_platform || event.source_name || 'source pending'} · {event.collection_method || 'method pending'}
         </div>
-        {(event.weight_notes || event.metric_notes) && (
-          <div style={styles.eventNotes}>{event.weight_notes || event.metric_notes}</div>
+        {explanation && (
+          <div style={styles.eventNotes}>{explanation}</div>
+        )}
+        {technicalNote && (
+          <details style={styles.technicalDetails}>
+            <summary>Technical details</summary>
+            <div>{technicalNote}</div>
+          </details>
         )}
       </div>
       <div style={styles.eventMath}>
@@ -381,6 +461,15 @@ function EventRow({ event }) {
   );
 }
 
+function formatContributionExplanation(event) {
+  if (event.calculated_score == null || event.weight == null) {
+    return 'Recorded as event evidence; no active scoring contribution was returned.';
+  }
+  const points = formatScore(event.calculated_score);
+  const direction = Number(event.calculated_score) < 0 ? 'reduced the score by' : 'contributed';
+  return `${event.metric_name || 'This event'} ${direction} ${points.replace('-', '')} points.`;
+}
+
 function groupEvents(events) {
   return events.reduce((groups, event) => {
     const bucket = event.score_bucket || 'team';
@@ -388,6 +477,42 @@ function groupEvents(events) {
     groups[bucket].push(event);
     return groups;
   }, {});
+}
+
+function groupEventsByMatch(events, matchHistory = []) {
+  const historyBySession = new Map(
+    matchHistory.filter(match => match.session_id).map(match => [match.session_id, match]),
+  );
+  const historyByDate = new Map(
+    matchHistory.filter(match => match.session_date).map(match => [match.session_date, match]),
+  );
+  const matches = new Map();
+  events.forEach(event => {
+    const sessionId = event.session_id || `undated-${event.session_date || 'unknown'}`;
+    const matchRecord = historyBySession.get(event.session_id) || historyByDate.get(event.session_date);
+    if (!matches.has(sessionId)) {
+      matches.set(sessionId, {
+        sessionId,
+        label: matchRecord?.opponent || event.competition || 'Opponent pending',
+        dateLabel: formatMatchDateLabel(event.session_date),
+        events: [],
+        score: 0,
+      });
+    }
+    const match = matches.get(sessionId);
+    match.events.push(event);
+    if (event.calculated_score != null) {
+      match.score += Number(event.calculated_score);
+    }
+  });
+  return Array.from(matches.values());
+}
+
+function formatMatchDateLabel(value) {
+  if (!value) return 'Date pending';
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function bucketColor(bucket) {
@@ -812,12 +937,6 @@ const styles = {
     fontWeight: 900,
     fontVariantNumeric: 'tabular-nums',
   },
-  traceLayout: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(260px, 0.8fr)',
-    gap: '1rem',
-    alignItems: 'start',
-  },
   tracePanel: {
     background: '#fff',
     border: '1px solid #e5e7eb',
@@ -825,11 +944,43 @@ const styles = {
     padding: '1.1rem',
     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
   },
+  rollupGuide: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.9rem',
+    padding: '0.85rem 1rem',
+    borderRadius: 8,
+    background: '#f8fafc',
+    border: '1px solid #e5e7eb',
+    color: '#374151',
+    fontSize: 12,
+  },
+  rollupGuideText: {
+    display: 'grid',
+    gap: 3,
+  },
+  rollupAligned: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.65rem',
+    color: '#166534',
+  },
+  rollupReview: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.65rem',
+    color: '#9a3412',
+  },
   panelHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     gap: '1rem',
     alignItems: 'center',
+    flexWrap: 'wrap',
     marginBottom: '0.85rem',
   },
   panelTitle: {
@@ -841,6 +992,34 @@ const styles = {
     color: '#6b7280',
     fontSize: 12,
     fontWeight: 800,
+    display: 'block',
+    marginTop: 3,
+  },
+  referenceFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.55rem',
+    color: '#9ca3af',
+    fontSize: 11,
+  },
+  referenceLink: {
+    border: 0,
+    background: 'transparent',
+    color: '#6b7280',
+    padding: 0,
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: 'pointer',
+    textDecoration: 'underline',
+    textUnderlineOffset: 2,
+  },
+  referencePanel: {
+    background: '#fffcf2',
+    border: '1px solid #eadca4',
+    borderRadius: 8,
+    padding: '1.1rem',
   },
   ruleGrid: {
     display: 'grid',
@@ -885,9 +1064,61 @@ const styles = {
     color: '#374151',
     fontSize: 13,
   },
-  eventLedger: {
+  positionalNote: {
+    display: 'grid',
+    gridTemplateColumns: 'max-content minmax(0, 1fr)',
+    gap: '0.65rem',
+    alignItems: 'start',
+    marginTop: '0.9rem',
+    padding: '0.75rem 0.85rem',
+    borderRadius: 6,
+    background: '#f8fafc',
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+  matchLedger: {
+    display: 'grid',
+    gap: '0.65rem',
+  },
+  matchDisclosure: {
+    border: '1px solid #e5e7eb',
+    borderRadius: 7,
+    overflow: 'hidden',
+    background: '#fff',
+  },
+  matchSummary: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '0.9rem 1rem',
+    cursor: 'pointer',
+    background: '#fafafa',
+  },
+  matchTitle: {
+    display: 'block',
+    color: '#111827',
+    fontSize: 14,
+  },
+  matchDate: {
+    display: 'block',
+    color: '#6b7280',
+    fontSize: 11,
+    marginTop: 3,
+  },
+  matchSummaryStats: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.8rem',
+    color: '#6b7280',
+    fontSize: 12,
+    whiteSpace: 'nowrap',
+  },
+  matchEventBody: {
     display: 'grid',
     gap: '1rem',
+    padding: '0.85rem 1rem 0.25rem',
   },
   ledgerBucket: {
     fontSize: 12,
@@ -921,6 +1152,12 @@ const styles = {
   eventNotes: {
     color: '#4b5563',
     fontSize: 12,
+    lineHeight: 1.35,
+    marginTop: 6,
+  },
+  technicalDetails: {
+    color: '#6b7280',
+    fontSize: 11,
     lineHeight: 1.35,
     marginTop: 6,
   },

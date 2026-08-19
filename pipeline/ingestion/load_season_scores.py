@@ -1,8 +1,8 @@
 """
 load_season_scores.py
 =====================
-One-time backfill script for 2025 season.
-Reads *_coug_scores.csv from each match folder and loads into Supabase.
+Loads season COUG score outputs into Supabase and refreshes the dashboard read
+model after successful writes.
 
 Load order per match:
   1. Session (upsert from manifest)
@@ -22,10 +22,13 @@ Environment (.env):
     PROJECT_ROOT
 """
 
+from __future__ import annotations
+
 import os
 import csv
 import argparse
 import logging
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -34,6 +37,10 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 
 load_dotenv()
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -352,7 +359,12 @@ def load_match_scores(sb: Client, slug: str, season: str, manifest: dict, weight
 
 
 # ── Season loader ─────────────────────────────────────────────────────────────
-def load_season(season: str, slug_filter: str | None, dry_run: bool):
+def load_season(
+    season: str,
+    slug_filter: str | None,
+    dry_run: bool,
+    refresh_read_model: bool = True,
+):
     sb       = get_client() if not dry_run else get_client()  # need client even for dry run for lookups
     manifest = load_manifest()
 
@@ -399,17 +411,39 @@ def load_season(season: str, slug_filter: str | None, dry_run: bool):
     log.info(f"  ❌ Failed:  {fail}")
     log.info(f"{'='*55}")
 
+    if not dry_run and success > 0 and refresh_read_model:
+        log.info(f"Refreshing dashboard read model for {season}...")
+        try:
+            from pipeline.analytics.build_dashboard_read_model import (
+                refresh_dashboard_read_model,
+            )
+
+            path = refresh_dashboard_read_model(season)
+            log.info(f"  ✅ Dashboard read model published: {path}")
+        except Exception as exc:
+            raise RuntimeError(
+                f"Scores loaded, but the {season} dashboard read model failed to refresh"
+            ) from exc
+
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Load 2025 COUG scores into Supabase")
+    parser = argparse.ArgumentParser(
+        description="Load season COUG scores and refresh dashboard read models"
+    )
     parser.add_argument("--season",  default="2025")
     parser.add_argument("--slug",    default=None, help="Load single match only")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--no-refresh-read-model",
+        action="store_true",
+        help="Skip the automatic dashboard JSON refresh after database writes",
+    )
     args = parser.parse_args()
 
     load_season(
         season=args.season,
         slug_filter=args.slug,
         dry_run=args.dry_run,
+        refresh_read_model=not args.no_refresh_read_model,
     )
