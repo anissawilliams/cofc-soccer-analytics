@@ -1,0 +1,304 @@
+#!/usr/bin/env python3
+"""Inspect loose Wyscout exports and prepare a canonical team-event timeline.
+
+This command never writes to Supabase. It accepts vendor filenames as-is,
+classifies XML files by their contents, and reports scoring readiness separately
+from analytics readiness. When a complementary pair of team-event XML files is
+available, it can merge their mirrored perspectives into one deduplicated CSV.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import json
+import re
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+
+from parse_wyscout import read_xml
+from source_paths import get_source_paths
+
+
+PLAYER_CODE = re.compile(r"\(\d+\)\s+.+")
+PERIOD_LABELS = {
+    "First half start",
+    "First half end",
+    "Second half start",
+    "Second half end",
+}
+
+# relation is from the perspective of the team named in the XML <code> field.
+LABEL_MAP = {
+    "Goals scored": ("goal", "self"),
+    "Goals conceded": ("goal", "opponent"),
+    "Shots": ("shot", "self"),
+    "Shots conceded": ("shot", "opponent"),
+    "Goal scoring opportunities": ("scoring_opportunity", "self"),
+    "Goal scoring opportunities conceded": ("scoring_opportunity", "opponent"),
+    "Attacking corners": ("corner", "self"),
+    "Corners conceded": ("corner", "opponent"),
+    "Crosses": ("cross", "self"),
+    "Crosses conceded": ("cross", "opponent"),
+    "Attacking throws in": ("throw_in", "self"),
+    "Throws in conceded": ("throw_in", "opponent"),
+    "Other free kicks": ("free_kick", "self"),
+    "Other free kicks conceded": ("free_kick", "opponent"),
+    "Attacking free kicks": ("free_kick", "self"),
+    "Free kicks conceded": ("free_kick", "opponent"),
+    "Attacking direct free kicks": ("direct_free_kick", "self"),
+    "Direct free kicks conceded": ("direct_free_kick", "opponent"),
+    "Counter-attacks": ("counter_attack", "self"),
+    "Opposition counter-attacks": ("counter_attack", "opponent"),
+    "Attacking style of play": ("attacking_phase", "self"),
+    "Defending style of play": ("attacking_phase", "opponent"),
+    "Goalkeeper's distribution": ("goalkeeper_distribution", "self"),
+    "Opposition goalkeeper's distributions": ("goalkeeper_distribution", "opponent"),
+}
+
+
+@dataclass(frozen=True)
+class XmlProfile:
+    path: Path
+    kind: str
+    team: str
+    instances: int
+    player_events: int
+    mapped_team_events: int
+    period_markers: int
+
+
+def _instances(path: Path) -> list[dict]:
+    root = read_xml(path)
+    rows = []
+    for instance in root.findall(".//instance"):
+        code = (instance.findtext("code") or "").strip()
+        start = float(instance.findtext("start") or 0)
+        end = float(instance.findtext("end") or 0)
+        labels = [
+            (node.text or "").strip()
+            for node in instance.findall(".//text")
+            if (node.text or "").strip()
+        ]
+        rows.append({"code": code, "start": start, "end": end, "labels": labels})
+    return rows
+
+
+def profile_xml(path: Path) -> XmlProfile:
+    rows = _instances(path)
+    player_events = sum(bool(PLAYER_CODE.fullmatch(row["code"])) for row in rows)
+    mapped_team_events = sum(
+        label in LABEL_MAP for row in rows for label in row["labels"]
+    )
+    period_markers = sum(
+        label in PERIOD_LABELS for row in rows for label in row["labels"]
+    )
+    team_codes = Counter(
+        row["code"]
+        for row in rows
+        if row["code"] and row["code"] != "Offsets" and not PLAYER_CODE.fullmatch(row["code"])
+    )
+    team = team_codes.most_common(1)[0][0] if team_codes else ""
+
+    if player_events:
+        kind = "scoring_event_xml" if period_markers else "player_event_xml"
+    elif mapped_team_events and team:
+        kind = "team_event_xml"
+    elif rows and all(not row["labels"] for row in rows):
+        kind = "effective_time_xml"
+    else:
+        kind = "unknown_xml"
+    return XmlProfile(
+        path=path,
+        kind=kind,
+        team=team,
+        instances=len(rows),
+        player_events=player_events,
+        mapped_team_events=mapped_team_events,
+        period_markers=period_markers,
+    )
+
+
+def discover_exports(input_dir: Path) -> list[XmlProfile]:
+    return [profile_xml(path) for path in sorted(input_dir.rglob("*.xml"))]
+
+
+def _period_anchors(team_files: list[Path]) -> dict[str, float]:
+    observed = defaultdict(list)
+    for path in team_files:
+        for row in _instances(path):
+            for label in row["labels"]:
+                if label in PERIOD_LABELS:
+                    observed[label].append(row["start"])
+    return {label: min(values) for label, values in observed.items()}
+
+
+def _clock(start: float, anchors: dict[str, float]) -> tuple[int, float]:
+    first_start = anchors.get("First half start", 0.0)
+    second_start = anchors.get("Second half start")
+    if second_start is not None and start >= second_start:
+        return 2, 45.0 + max(0.0, start - second_start) / 60.0
+    return 1, max(0.0, start - first_start) / 60.0
+
+
+def merge_team_event_pair(team_files: list[Path], slug: str) -> tuple[list[dict], dict]:
+    """Merge two mirrored team XMLs into one canonical, source-traceable stream."""
+    if len(team_files) != 2:
+        raise ValueError(f"Expected exactly two team-event XML files; found {len(team_files)}")
+
+    profiles = [profile_xml(path) for path in team_files]
+    teams = [profile.team for profile in profiles]
+    if not all(teams) or len(set(teams)) != 2:
+        raise ValueError(f"Team-event files must identify two distinct teams; found {teams}")
+
+    anchors = _period_anchors(team_files)
+    merged = {}
+    unmapped = Counter()
+    observations = 0
+
+    for path, perspective_team in zip(team_files, teams):
+        opponent = next(team for team in teams if team != perspective_team)
+        for row in _instances(path):
+            for label in row["labels"]:
+                if label in PERIOD_LABELS:
+                    continue
+                mapping = LABEL_MAP.get(label)
+                if mapping is None:
+                    unmapped[label] += 1
+                    continue
+                event_type, relation = mapping
+                actor_team = perspective_team if relation == "self" else opponent
+                half, match_minute = _clock(row["start"], anchors)
+                key = (row["start"], row["end"], event_type, actor_team)
+                event = merged.setdefault(key, {
+                    "event_id": hashlib.sha256(
+                        f"{slug}|{row['start']}|{row['end']}|{event_type}|{actor_team}".encode("utf-8")
+                    ).hexdigest()[:20],
+                    "slug": slug,
+                    "event_type": event_type,
+                    "team": actor_team,
+                    "start_seconds": row["start"],
+                    "end_seconds": row["end"],
+                    "half": half,
+                    "match_minute": round(match_minute, 3),
+                    "perspectives": set(),
+                    "raw_labels": set(),
+                    "source_files": set(),
+                })
+                event["perspectives"].add(perspective_team)
+                event["raw_labels"].add(label)
+                event["source_files"].add(path.name)
+                observations += 1
+
+    events = []
+    for event in merged.values():
+        event["perspectives"] = sorted(event["perspectives"])
+        event["raw_labels"] = sorted(event["raw_labels"])
+        event["source_files"] = sorted(event["source_files"])
+        events.append(event)
+    events.sort(key=lambda row: (row["start_seconds"], row["end_seconds"], row["event_type"], row["team"]))
+
+    summary = {
+        "teams": teams,
+        "source_observations": observations,
+        "canonical_events": len(events),
+        "mirrored_events": sum(len(event["perspectives"]) == 2 for event in events),
+        "event_types": dict(Counter(event["event_type"] for event in events)),
+        "events_by_team": dict(Counter(event["team"] for event in events)),
+        "unmapped_labels": dict(unmapped),
+        "period_anchors": anchors,
+    }
+    return events, summary
+
+
+def write_events(path: Path, events: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "event_id", "slug", "event_type", "team", "start_seconds",
+        "end_seconds", "half", "match_minute", "perspectives",
+        "raw_labels", "source_files",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for event in events:
+            writer.writerow({
+                **event,
+                "perspectives": json.dumps(event["perspectives"]),
+                "raw_labels": json.dumps(event["raw_labels"]),
+                "source_files": json.dumps(event["source_files"]),
+            })
+
+
+def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
+    profiles = discover_exports(input_dir)
+    scoring_files = [profile for profile in profiles if profile.kind == "scoring_event_xml"]
+    team_profiles = [profile for profile in profiles if profile.kind == "team_event_xml"]
+    distinct_teams = {profile.team for profile in team_profiles if profile.team}
+
+    events = []
+    analytics_reason = "requires exactly two complementary team-event XML files"
+    analytics_ready = len(team_profiles) == 2 and len(distinct_teams) == 2
+    team_summary = None
+    if analytics_ready:
+        events, team_summary = merge_team_event_pair([profile.path for profile in team_profiles], slug)
+        analytics_reason = "paired team-event XMLs merged successfully"
+
+    report = {
+        "slug": slug,
+        "input_dir": str(input_dir),
+        "scoring": {
+            "ready": bool(scoring_files),
+            "reason": (
+                "player-coded XML with period markers found"
+                if scoring_files
+                else "missing player-coded Sportscode XML; do not publish COUG scores"
+            ),
+        },
+        "analytics": {"ready": analytics_ready, "reason": analytics_reason},
+        "files": [
+            {
+                "name": profile.path.name,
+                "kind": profile.kind,
+                "team": profile.team,
+                "instances": profile.instances,
+                "player_events": profile.player_events,
+                "mapped_team_events": profile.mapped_team_events,
+                "period_markers": profile.period_markers,
+            }
+            for profile in profiles
+        ],
+        "team_event_summary": team_summary,
+    }
+    return report, events
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input-dir", type=Path, required=True, help="Folder containing loose vendor exports")
+    parser.add_argument("--season", required=True)
+    parser.add_argument("--slug", required=True)
+    parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--dry-run", action="store_true", help="Inspect and parse in memory without writing files")
+    args = parser.parse_args()
+
+    report, events = build_intake_report(args.input_dir.resolve(), args.slug)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    if args.dry_run:
+        return
+
+    output_dir = args.output_dir or (
+        get_source_paths().parsed_outputs_dir / str(args.season) / args.slug
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    report_path = output_dir / f"{args.slug}_intake_report.json"
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    if events:
+        write_events(output_dir / f"{args.slug}_canonical_team_events.csv", events)
+    print(f"Prepared intake outputs: {output_dir}")
+
+
+if __name__ == "__main__":
+    main()

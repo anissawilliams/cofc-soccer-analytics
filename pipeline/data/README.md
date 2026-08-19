@@ -62,3 +62,25 @@ schema/2026_07_source_file.sql
 
 The pipeline defaults still point here so a fully local setup works, but the
 repo should not grow every time new match exports arrive.
+
+## Loose Match Intake
+
+Vendor filenames do not need to be renamed before inspection. Use the intake
+command to classify XML files from their contents and keep scoring readiness
+separate from team-analysis readiness:
+
+```bash
+.venv/bin/python pipeline/ingestion/prepare_match_intake.py \
+  --input-dir /path/to/one-match-exports \
+  --season 2026 \
+  --slug 2026-08-20_davidson \
+  --dry-run
+```
+
+Remove `--dry-run` only after reviewing the report. This writes a source report
+and, when two complementary team XMLs are present, a deduplicated canonical
+team-event CSV under the parsed outputs directory. It never writes to Supabase.
+
+`scoring.ready` must be true before the COUG scoring workflow begins. Paired
+team-event XMLs can power Match Flow but cannot replace the player-coded
+Sportscode XML required for player scoring.
