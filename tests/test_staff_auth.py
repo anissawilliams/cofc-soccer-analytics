@@ -60,6 +60,7 @@ class StaffAuthTests(unittest.TestCase):
                 "/api/team/formations",
                 "/api/roster/development",
                 "/api/match-story/session-1",
+                "/api/shot-map/session-1",
                 "/api/player-coug-trace/player-1?season=2026",
             ]
             for path in protected_paths:
@@ -80,6 +81,14 @@ class StaffAuthTests(unittest.TestCase):
                     headers={"Authorization": f"Bearer {token}"},
                 )
             self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["cache-control"], "no-store")
+            with patch("backend.main.db.get_match_shot_map", return_value={"shot_map": {"available": True}}):
+                response = client.get(
+                    "/api/shot-map/session-1",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["shot_map"]["available"])
             self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_published_player_history_remains_public(self):

@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { cachedApiFetch } from './apiCache';
 import MatchStory from './MatchStory.jsx';
+import ShotMap from './ShotMap.jsx';
 import { staffApiFetch, staffLogin, staffLogout, verifyStaffSession } from './staffApi';
 
 const T = {
@@ -113,14 +114,15 @@ function StaffDashboard({ analytics }) {
     ['analytics', 'Team Analytics'],
     ['simulator', 'Prediction Simulator'],
     ['story', 'Match Story'],
+    ['shots', 'Shot Map'],
     ['scouting', 'Scouting'],
     ['development', 'Player Development'],
     ['recruiting', 'Recruiting'],
   ];
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
+    <div className="staff-dashboard-page" style={styles.page}>
+      <div className="staff-dashboard-header" style={styles.header}>
         <div>
           <h1 style={styles.title}>Staff Dashboard</h1>
           <p style={styles.subtitle}>Private scouting, simulation, development, and recruiting workspace.</p>
@@ -156,6 +158,7 @@ function StaffDashboard({ analytics }) {
       {section === 'simulator' && <PredictionSimulator />}
       {section === 'analytics' && analytics}
       {section === 'story' && <MatchStory />}
+      {section === 'shots' && <ShotMap />}
       {section === 'scouting' && (
         <StaffPlaceholder
           title="Scouting"

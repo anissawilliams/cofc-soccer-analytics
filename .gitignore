@@ -73,6 +73,9 @@ data/
 !pipeline/data/manifests/*.csv
 !pipeline/data/match_flow/
 !pipeline/data/match_flow/*.json
+!pipeline/data/shot_maps/
+!pipeline/data/shot_maps/*.json
+!pipeline/data/shot_map_template.csv
 # ── Secrets ───────────────────────────────────────────────────
 *.pem
 *.key

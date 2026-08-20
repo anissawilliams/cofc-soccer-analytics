@@ -1,0 +1,40 @@
+{
+  "version": "reviewed_wyscout_report_v1",
+  "home_team": "Charleston Cougars",
+  "away_team": "UNCW Seahawks",
+  "coordinate_system": {
+    "x": "0 left touchline to 100 right touchline",
+    "y": "0 own goal line to 100 opponent goal line",
+    "precision": "transcribed from plotted Wyscout match-report positions"
+  },
+  "team_summaries": {
+    "Charleston Cougars": {"shots":7,"xg":1.09,"on_goal":4,"goals":2,"big_chances":1,"psxg":1.28},
+    "UNCW Seahawks": {"shots":10,"xg":0.83,"on_goal":2,"goals":1,"big_chances":1,"psxg":0.49}
+  },
+  "shots": [
+    {"shot_id":"charleston-1","team":"Charleston Cougars","sequence":1,"player":"E. White","minute":1,"minute_label":"1","outcome":"on_goal","shot_type":"Right foot","xg":0.04,"xg_display":"0.04","psxg":0.10,"psxg_display":"0.10","x":52.6,"y":53.9},
+    {"shot_id":"charleston-2","team":"Charleston Cougars","sequence":2,"player":"L. Gill","minute":7,"minute_label":"7","outcome":"wide","shot_type":"Head, after corner","xg":0.10,"xg_display":"0.10","psxg":null,"psxg_display":null,"x":44.2,"y":75.8},
+    {"shot_id":"charleston-3","team":"Charleston Cougars","sequence":3,"player":"M. Lenert","minute":23,"minute_label":"23","outcome":"goal","shot_type":"Right foot","xg":0.22,"xg_display":"0.22","psxg":0.26,"psxg_display":"0.26","x":38.5,"y":82.0},
+    {"shot_id":"charleston-4","team":"Charleston Cougars","sequence":4,"player":"L. Gill","minute":31,"minute_label":"31","outcome":"wide","shot_type":"Head","xg":0.05,"xg_display":"0.05","psxg":null,"psxg_display":null,"x":57.3,"y":75.8},
+    {"shot_id":"charleston-5","team":"Charleston Cougars","sequence":5,"player":"L. Gill","minute":46,"minute_label":"45+1","outcome":"wide","shot_type":"Right foot","xg":0.05,"xg_display":"0.05","psxg":null,"psxg_display":null,"x":39.3,"y":51.8},
+    {"shot_id":"charleston-6","team":"Charleston Cougars","sequence":6,"player":"S. Bendvold","minute":65,"minute_label":"65","outcome":"on_goal","shot_type":"Right foot","xg":0.55,"xg_display":"0.55","psxg":0.72,"psxg_display":"0.72","x":47.9,"y":87.3},
+    {"shot_id":"charleston-7","team":"Charleston Cougars","sequence":7,"player":"E. Emanuele","minute":93,"minute_label":"90+3","outcome":"goal","shot_type":"Right foot","xg":0.09,"xg_display":"0.09","psxg":0.20,"psxg_display":"0.20","x":12.1,"y":39.3},
+    {"shot_id":"uncw-1","team":"UNCW Seahawks","sequence":1,"player":"J. Clarkson","minute":29,"minute_label":"29","outcome":"wide","shot_type":"Left foot","xg":null,"xg_display":"<0.01","psxg":null,"psxg_display":null,"x":18.5,"y":50.5},
+    {"shot_id":"uncw-2","team":"UNCW Seahawks","sequence":2,"player":"L. Siikala","minute":36,"minute_label":"36","outcome":"wide","shot_type":"Right foot","xg":0.35,"xg_display":"0.35","psxg":null,"psxg_display":null,"x":49.1,"y":87.5},
+    {"shot_id":"uncw-3","team":"UNCW Seahawks","sequence":3,"player":"E. Newsome","minute":52,"minute_label":"52","outcome":"on_goal","shot_type":"Right foot","xg":0.05,"xg_display":"0.05","psxg":null,"psxg_display":null,"x":31.8,"y":46.9},
+    {"shot_id":"uncw-4","team":"UNCW Seahawks","sequence":4,"player":"K. Radke","minute":54,"minute_label":"54","outcome":"wide","shot_type":"Right foot","xg":null,"xg_display":"<0.01","psxg":null,"psxg_display":null,"x":67.6,"y":57.3},
+    {"shot_id":"uncw-5","team":"UNCW Seahawks","sequence":5,"player":"E. Newsome","minute":61,"minute_label":"61","outcome":"wide","shot_type":"Right foot","xg":null,"xg_display":"<0.01","psxg":null,"psxg_display":null,"x":62.8,"y":46.9},
+    {"shot_id":"uncw-6","team":"UNCW Seahawks","sequence":6,"player":"J. Shannon","minute":67,"minute_label":"67","outcome":"goal","shot_type":"Right foot","xg":0.13,"xg_display":"0.13","psxg":0.32,"psxg_display":"0.32","x":31.8,"y":57.6},
+    {"shot_id":"uncw-7","team":"UNCW Seahawks","sequence":7,"player":"J. Clarkson","minute":70,"minute_label":"70","outcome":"wide","shot_type":"Left foot","xg":null,"xg_display":"<0.01","psxg":null,"psxg_display":null,"x":39.2,"y":41.4},
+    {"shot_id":"uncw-8","team":"UNCW Seahawks","sequence":8,"player":"C. D'Amico","minute":72,"minute_label":"72","outcome":"on_post","shot_type":"Head","xg":0.20,"xg_display":"0.20","psxg":0.17,"psxg_display":"0.17","x":62.5,"y":89.7},
+    {"shot_id":"uncw-9","team":"UNCW Seahawks","sequence":9,"player":"W. Ampofo","minute":77,"minute_label":"77","outcome":"blocked","shot_type":"Right foot","xg":null,"xg_display":"<0.01","psxg":null,"psxg_display":null,"x":51.0,"y":41.4},
+    {"shot_id":"uncw-10","team":"UNCW Seahawks","sequence":10,"player":"J. Clarkson","minute":97,"minute_label":"90+7","outcome":"blocked","shot_type":"Right foot","xg":0.07,"xg_display":"0.07","psxg":null,"psxg_display":null,"x":51.2,"y":70.0}
+  ],
+  "coverage": {"shots":17,"located_shots":17,"xg_labeled_shots":17,"psxg_labeled_shots":6},
+  "source": {
+    "label": "Wyscout Match Report, pages 12-13",
+    "file": "Charleston Cougars - UNCW Seahawks 2-1 (1).pdf",
+    "reviewed": true,
+    "notes": "Shot facts were transcribed from the report tables; normalized locations were transcribed from the numbered report plots."
+  }
+}

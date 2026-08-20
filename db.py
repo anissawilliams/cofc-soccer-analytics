@@ -16,6 +16,7 @@ from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from backend.match_flow import get_match_flow
+from backend.shot_map import get_shot_map as load_shot_map
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
@@ -963,6 +964,60 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
         }
     except Exception as exc:
         print(f"[db] get_match_story error: {exc}")
+        return empty
+
+
+def get_match_shot_map(session_id: str) -> dict:
+    """Reviewed shot locations and chance quality for one match session."""
+    empty = {
+        "session_id": session_id,
+        "match": None,
+        "shot_map": {"available": False, "reason": "match metadata unavailable"},
+    }
+    try:
+        rows = (
+            get_client().table("match")
+            .select(
+                "id, session_id, result, goals_for, goals_against, "
+                "session:session_id(session_date, season, competition, venue), "
+                "home_team:home_team_id(name, short_name, is_cofc), "
+                "away_team:away_team_id(name, short_name, is_cofc)"
+            )
+            .eq("session_id", session_id)
+            .execute()
+            .data
+            or []
+        )
+        if len(rows) != 1:
+            return empty
+
+        row = rows[0]
+        session = row.get("session") or {}
+        home = row.get("home_team") or {}
+        away = row.get("away_team") or {}
+        opponent = away if home.get("is_cofc") else home
+        return {
+            "session_id": session_id,
+            "match": {
+                "match_id": row.get("id"),
+                "date": session.get("session_date"),
+                "season": session.get("season"),
+                "competition": session.get("competition"),
+                "venue": session.get("venue"),
+                "opponent": opponent.get("name") or "Unknown",
+                "home": bool(home.get("is_cofc")),
+                "result": row.get("result"),
+                "goals_for": row.get("goals_for"),
+                "goals_against": row.get("goals_against"),
+            },
+            "shot_map": load_shot_map(
+                session.get("session_date"),
+                home.get("name"),
+                away.get("name"),
+            ),
+        }
+    except Exception as exc:
+        print(f"[db] get_match_shot_map error: {exc}")
         return empty
 
 
