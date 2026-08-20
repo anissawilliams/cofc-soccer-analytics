@@ -36,10 +36,6 @@ async function apiFetch(path) {
   return cachedApiFetch(API, path);
 }
 
-function per90(score, minutes) {
-  if (!minutes || minutes < 20) return null;
-  return (score / minutes) * 90;
-}
 function fmtScore(v) {
   if (v === null || v === undefined) return "—";
   return Number(v).toFixed(2);
@@ -122,7 +118,6 @@ function TableHeader({ isSeason }) {
 
 // ─── Player row ───────────────────────────────────────────────────────────────
 function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
-  const p90 = per90(player.total_score, player.minutes_played);
   const isTop3 = rank <= 3;
   const bg = selected ? T.surface2 : "transparent";
   const rankColor = rank === 1 ? T.gold : rank === 2 ? T.textMuted : rank === 3 ? "#cd7f32" : T.muted;
@@ -213,10 +208,10 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
         <div style={{ textAlign: "right" }}>
           <span style={{
             fontSize: 12, fontWeight: 500,
-            color: p90 !== null ? T.goldDim : T.muted,
+            color: player.total_per90 !== null ? T.goldDim : T.muted,
             fontVariantNumeric: "tabular-nums",
           }}>
-            {p90 !== null ? fmtScore(p90) : "—"}
+            {player.total_per90 !== null ? fmtScore(player.total_per90) : "—"}
           </span>
         </div>
       )}
@@ -230,7 +225,6 @@ function PlayerPanel({ player, history }) {
   const avg = history.length
     ? history.reduce((s, m) => s + (m.total_score || 0), 0) / history.length
     : 0;
-  const p90 = per90(player.total_score, player.minutes_played);
 
   return (
     <div style={{
@@ -305,7 +299,7 @@ function PlayerPanel({ player, history }) {
           <div style={{ background: T.surface2, border: `1px solid ${T.borderGold}`, borderRadius: 6, padding: "10px 12px" }}>
             <div style={{ fontSize: 11, color: T.muted, letterSpacing: 1 }}>SCORE / 90</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.gold }}>
-              {p90 !== null ? fmtScore(p90) : "—"}
+              {player.total_per90 !== null ? fmtScore(player.total_per90) : "—"}
             </div>
           </div>
         </div>
@@ -364,8 +358,10 @@ export default function CougTable() {
   const [error, setError]               = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     apiFetch("/api/seasons")
       .then(payload => {
+        if (cancelled) return;
         // Accept the old array response during rolling deployments.
         const available = Array.isArray(payload) ? payload : payload.seasons || [];
         const configured = Array.isArray(payload)
@@ -377,44 +373,82 @@ export default function CougTable() {
         setSeason(normalized[0]);
       })
       .catch(() => {
+        if (cancelled) return;
         setSeasons([CONFIGURED_ACTIVE_SEASON]);
         setSeason(CONFIGURED_ACTIVE_SEASON);
       });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (!season) return;
+    let cancelled = false;
     apiFetch(`/api/team/matches?season=${season}`)
       .then(m => {
+        if (cancelled) return;
         setMatches(m);
-        if (m.length > 0) setSelectedMatch(m[0]);
+        setSelectedMatch(m[0] || null);
+        if (!m.length) setLoading(false);
       })
-      .catch(e => setError(e.message));
+      .catch(e => {
+        if (cancelled) return;
+        setMatches([]);
+        setSelectedMatch(null);
+        setError(e.message);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [season]);
 
   useEffect(() => {
     if (!season || tab !== "season") return;
-    setLoading(true);
+    let cancelled = false;
     apiFetch(`/api/coug-leaderboard-with-minutes/${season}`)
-      .then(d => { setSeasonData(d); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
+      .then(d => {
+        if (cancelled) return;
+        setSeasonData(d);
+        setLoading(false);
+      })
+      .catch(e => {
+        if (cancelled) return;
+        setSeasonData([]);
+        setError(e.message);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [season, tab]);
 
   useEffect(() => {
     if (!selectedMatch || tab !== "match") return;
-    setLoading(true);
+    let cancelled = false;
     // Use session_id (from the match object) not match_id
     const sid = selectedMatch.session_id || selectedMatch.match_id;
     apiFetch(`/api/coug-scores-with-minutes?session_id=${sid}&season=${season}`)
-      .then(d => { setMatchData(d); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
-  }, [selectedMatch, tab]);
+      .then(d => {
+        if (cancelled) return;
+        setMatchData(d);
+        setLoading(false);
+      })
+      .catch(e => {
+        if (cancelled) return;
+        setMatchData([]);
+        setError(e.message);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedMatch, tab, season]);
 
   useEffect(() => {
-    if (!selectedPlayer) { setPlayerHistory([]); return; }
+    if (!selectedPlayer) return;
+    let cancelled = false;
     apiFetch(`/api/player-match-history/${selectedPlayer.athlete_id}?season=${season}`)
-      .then(setPlayerHistory)
-      .catch(() => setPlayerHistory([]));
+      .then(history => {
+        if (!cancelled) setPlayerHistory(history);
+      })
+      .catch(() => {
+        if (!cancelled) setPlayerHistory([]);
+      });
+    return () => { cancelled = true; };
   }, [selectedPlayer, season]);
 
   const data = tab === "season" ? seasonData : matchData;
@@ -429,7 +463,7 @@ export default function CougTable() {
       total: (a, b) => (b.total_score || 0) - (a.total_score || 0),
       aset:  (a, b) => (b.aset_score  || 0) - (a.aset_score  || 0),
       peak:  (a, b) => (b.peak_score  || 0) - (a.peak_score  || 0),
-      per90: (a, b) => (per90(b.total_score, b.minutes_played) ?? -1) - (per90(a.total_score, a.minutes_played) ?? -1),
+      per90: (a, b) => (b.total_per90 ?? -1) - (a.total_per90 ?? -1),
     };
     return [...d].sort(sorts[sortBy] || sorts.total);
   }, [data, sortBy, filterPos]);
@@ -447,6 +481,44 @@ export default function CougTable() {
     color: T.text, padding: "6px 12px", borderRadius: 4,
     fontSize: 12, cursor: "pointer", outline: "none",
   };
+
+  function changeSeason(nextSeason) {
+    setLoading(true);
+    setError(null);
+    setSeasonData([]);
+    setMatchData([]);
+    setMatches([]);
+    setSelectedMatch(null);
+    setSelectedPlayer(null);
+    setPlayerHistory([]);
+    setSeason(nextSeason);
+  }
+
+  function changeTab(nextTab) {
+    setTab(nextTab);
+    setSelectedPlayer(null);
+    setPlayerHistory([]);
+    setError(null);
+    setLoading(nextTab === "season" || Boolean(selectedMatch));
+  }
+
+  function changeMatch(sessionId) {
+    const match = matches.find(item =>
+      (item.session_id || item.match_id) === sessionId
+    ) || null;
+    setLoading(Boolean(match));
+    setError(null);
+    setMatchData([]);
+    setSelectedMatch(match);
+    setSelectedPlayer(null);
+    setPlayerHistory([]);
+  }
+
+  function togglePlayer(player) {
+    const nextPlayer = selectedPlayer?.athlete_id === player.athlete_id ? null : player;
+    setSelectedPlayer(nextPlayer);
+    setPlayerHistory([]);
+  }
 
   return (
     <div style={{
@@ -479,7 +551,7 @@ export default function CougTable() {
           </div>
         </div>
 
-        <select value={season} onChange={e => setSeason(e.target.value)} style={{
+        <select value={season} onChange={e => changeSeason(e.target.value)} style={{
           ...selectStyle,
           background: T.garnet + "88",
           border: `1px solid ${T.gold}44`,
@@ -533,7 +605,7 @@ export default function CougTable() {
       }}>
         {/* Tabs */}
         {["season", "match"].map(t => (
-          <button key={t} onClick={() => { setTab(t); setSelectedPlayer(null); }} style={{
+          <button key={t} onClick={() => changeTab(t)} style={{
             background: "transparent", border: "none",
             borderBottom: tab === t ? `2px solid ${T.gold}` : "2px solid transparent",
             color: tab === t ? T.gold : T.muted,
@@ -553,13 +625,7 @@ export default function CougTable() {
             <span style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>VS</span>
             <select
               value={selectedMatch?.session_id || selectedMatch?.match_id || ""}
-              onChange={e => {
-                const m = matches.find(m =>
-                  (m.session_id || m.match_id) === e.target.value
-                );
-                setSelectedMatch(m);
-                setSelectedPlayer(null);
-              }}
+              onChange={e => changeMatch(e.target.value)}
               style={selectStyle}
             >
               {matches.map(m => {
@@ -647,9 +713,7 @@ export default function CougTable() {
                   maxTotal={maxTotal}
                   isSeason={tab === "season"}
                   selected={selectedPlayer?.athlete_id === p.athlete_id}
-                  onClick={() => setSelectedPlayer(
-                    selectedPlayer?.athlete_id === p.athlete_id ? null : p
-                  )}
+                  onClick={() => togglePlayer(p)}
                 />
               ))}
             </>

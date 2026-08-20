@@ -68,3 +68,21 @@ def snapshot_value(season: str, *keys: str) -> Any | None:
             return None
         value = value[key]
     return value
+
+
+def published_snapshot_value(
+    season: str,
+    weight_version: str,
+    *keys: str,
+) -> Any | None:
+    """Read a snapshot only when its publication metadata matches the request."""
+    model = load_season_read_model(season)
+    if not model:
+        return None
+    if model.get("schema_version") not in {1, 2}:
+        return None
+    if str(model.get("season")) != str(season):
+        return None
+    if model.get("weight_version") != weight_version:
+        return None
+    return snapshot_value(season, *keys)
