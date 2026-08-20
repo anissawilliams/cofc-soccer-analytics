@@ -1,122 +1,83 @@
-# CofC Match Data Intake — Student Instructions
+# CofC Match File Intake
 
-Use this checklist after every match. Your job is to preserve the original
-exports, run the intake notebook, review the results, and send the generated
-bundle to a staff reviewer. The notebook does not publish data.
+After each match, open the match menu in Wyscout and download these six files.
 
-## Match Folder Name
+## Download These XML Files
 
-Name the match folder with this exact pattern:
+| Wyscout menu choice | Extension | Why we keep it |
+|---|---|---|
+| `SPORTSCODE XML (NEW VERSION)` | `.xml` | COUG scoring — required |
+| `DOWNLOAD XML – CHARLESTON COUGARS (PLAYER)` | `.xml` | CofC player-event archive |
+| `DOWNLOAD XML – OPPONENT (PLAYER)` | `.xml` | Opponent player-event archive |
+| `DOWNLOAD XML – CHARLESTON COUGARS (TEAM)` | `.xml` | Match Flow — required |
+| `DOWNLOAD XML – OPPONENT (TEAM)` | `.xml` | Match Flow — required |
+| `DOWNLOAD XML EFFECTIVE TIME` | `.xml` | Clock quality check |
+
+Use `SPORTSCODE XML (NEW VERSION)`. If you also download the older
+`DOWNLOAD SPORTSCODE XML`, put the older file in `05_source_archive`, not in
+the source folder scanned by the notebook.
+
+## Keep Wyscout's Filenames
+
+Do not rename, edit, convert, combine, or resave the downloaded files. A name
+ending in `(1)` is okay.
+
+Names may look like:
+
+```text
+YYYY-MM-DD_HH_MM, Charleston Cougars - UNCW Seahawks.xml
+UNCW Seahawks_player-events_02-11-2025_Charleston Cougars-UNCW Seahawks.xml
+Charleston Cougars_team-events_02-11-2025_Charleston Cougars-UNCW Seahawks.xml
+UNCW Seahawks_team-events_02-11-2025_Charleston Cougars-UNCW Seahawks.xml
+```
+
+Wyscout may use `DD-MM-YYYY` inside its filenames. Leave that unchanged. Our
+match folder uses `YYYY-MM-DD`.
+
+## Match Folder
+
+Name the match folder:
 
 ```text
 YYYY-MM-DD_opponent
 ```
 
-Rules:
-
-- Use the scheduled match date in year-month-day format.
-- Use lowercase letters for the opponent.
-- Replace spaces and punctuation with underscores.
-- Do not add home/away to the folder name; that belongs in match metadata.
-
-Examples:
+Use lowercase letters and underscores. Do not add home or away to the folder
+name. Example: `2026-08-20_davidson`.
 
 ```text
-2026-08-20_davidson
-2026-09-05_william_mary
-2026-10-13_north_florida
+2026/matches/2026-08-20_davidson/
+  00_source/
+    wyscout/          <- six current XML downloads
+    spiideo/          <- original Spiideo export, when available
+  05_source_archive/ <- older or replaced downloads
+  20_generated/      <- notebook output
 ```
 
-## Folder Layout
+Point the intake notebook at `00_source`, not the full match folder.
 
-```text
-2026/
-  matches/
-    2026-08-20_davidson/
-      00_source/
-        wyscout/
-        spiideo/
-      05_source_archive/
-      20_generated/
-```
+## Run the Notebook
 
-- Put the current original downloads in `00_source`.
-- Put an older or superseded download in `05_source_archive`; do not delete it.
-- Point the notebook at `00_source`, never the full match folder.
-- The notebook writes only to `20_generated`.
+1. Open `pipeline/notebooks/2026_match_intake.ipynb` in Google Colab.
+2. Mount Drive and complete the setup cell, including your full name in
+   `prepared_by`.
+3. Run with `CREATE_REVIEW_BUNDLE = False` and read the readiness table.
+4. After reviewing warnings, set it to `True` and create the staff review
+   bundle.
 
-## Wyscout Files
+The notebook does not publish to Supabase. `ready_for_staff_review` means the
+files can be reviewed; it does not mean approved or coach-ready.
 
-Download every export that is available. Wyscout filenames may vary, so **do
-not rename the downloaded files**. The intake reads XML contents rather than
-depending on filenames.
+## Stop and Ask for Help
 
-| File | Extension | Needed for | Requirement |
-|---|---|---|---|
-| Player-coded Sportscode export | `.xml` | COUG player scoring | Required for player scores |
-| CofC team-events export | `.xml` | Match Flow and tactical events | Required for Match Flow |
-| Opponent team-events export | `.xml` | Match Flow and tactical events | Required for Match Flow |
-| Effective-time export | `.xml` | Clock and playing-time QA | Keep when available |
-| Players in Match report | `.pdf` | Player-statistics QA | Keep when available |
-| Full Match report | `.pdf` | Score, shots, xG, and team-total QA | Keep when available |
-| Structured event export | `.csv`, `.xlsx`, or `.json` | Richer event and dashboard data | Keep every available export |
-| Download bundle | `.zip` | Original vendor package | Keep the ZIP and extract a working copy |
-
-The two team-events XML files do not replace the player-coded Sportscode XML.
-It is normal for Match Flow to be ready while COUG player scoring is not ready.
-
-## Spiideo Files
-
-Keep the original Spiideo export in `00_source/spiideo/`. The expected first
-format is `.xml`, but also retain `.csv`, `.json`, or `.zip` files when Spiideo
-provides them. Do not convert Spiideo data into Wyscout columns. The sources will
-be aligned later after their clocks and identifiers have been reviewed.
-
-Do not place video files such as `.mp4` or `.mov` in the match-data intake
-folder. Store video in the team's normal video location and record its link in
-the match notes if needed.
-
-## Do Not Change Original Files
-
-- Do not rename, edit, resave, or convert XML, PDF, CSV, XLSX, JSON, or ZIP files.
-- A filename ending in `(1)` is acceptable; keep it unchanged.
-- Do not open an XML in Excel and save it again.
-- Do not combine two exports manually.
-- If Wyscout sends a corrected version, move the older file to
-  `05_source_archive` and document which version is current.
-
-## Complete the Notebook Setup
-
-Open `pipeline/notebooks/2026_match_intake.ipynb` and complete:
-
-- `SEASON`
-- `MATCH_SLUG`
-- `SOURCE_FOLDER`
-- `OUTPUT_FOLDER`
-- match date
-- opponent
-- home, away, or neutral location
-- competition
-- final score, when known
-- `prepared_by` with your full name
-- notes about missing or revised exports
-
-Run the inspection with:
-
-```python
-CREATE_REVIEW_BUNDLE = False
-```
-
-After reviewing the results, change it to `True` to create the review bundle.
-
-## Stop and Ask for Help When
-
-- A file is classified as `invalid_xml` or `unknown_xml`.
-- More than one player-coded Sportscode XML is detected.
+- A file is reported as `invalid_xml` or `unknown_xml`.
+- More than one Sportscode scoring file is detected.
 - A player does not match the current roster.
-- The Wyscout score or totals disagree with the generated report.
-- You are uncertain which corrected export is current.
-- You think an original source file needs to be edited.
+- The score or event totals disagree with Wyscout.
+- You are unsure which corrected download is current.
 
-`ready_for_staff_review` means the bundle can be reviewed. It does not mean the
-data has been approved, published, or delivered to coaches.
+Ask Anissa before changing an original file. Do not publish data or push
+directly to `main`.
+
+The printable version is
+[`docs/xml_ingestion_guide.docx`](../../docs/xml_ingestion_guide.docx).
