@@ -88,6 +88,51 @@ Point the intake notebook at `00_source`, not the full match folder.
 The notebook does not publish to Supabase. `ready_for_staff_review` means the
 files can be reviewed; it does not mean approved or coach-ready.
 
+## Staff Review and Supabase Promotion
+
+The notebook creates `<slug>_approval.json` with all three decisions set to
+`false`:
+
+```json
+{
+  "reviewed_by": "",
+  "reviewed_at": "",
+  "approvals": {
+    "source_archive": false,
+    "match_analytics": false,
+    "coug_scoring": false
+  },
+  "notes": ""
+}
+```
+
+Staff—not students—complete this file after reviewing the validation report.
+Use a timestamp with timezone, for example `2026-08-20T18:30:00-04:00`. It is
+valid to approve the source archive and match analytics while leaving COUG
+scoring false.
+
+Preview the exact Supabase operations first:
+
+```bash
+.venv/bin/python pipeline/ingestion/promote_match_intake.py \
+  --source-dir "/path/to/00_source" \
+  --bundle-dir "/path/to/20_generated"
+```
+
+Review `<slug>_promotion_receipt.json`, then apply with staff credentials:
+
+```bash
+.venv/bin/python pipeline/ingestion/promote_match_intake.py \
+  --source-dir "/path/to/00_source" \
+  --bundle-dir "/path/to/20_generated" \
+  --apply
+```
+
+Promotion stops if a source file or intake report changed after review, an
+approved product is not ready, or an approved artifact is missing. Filenames
+are preserved as metadata; classification and collision-safe Storage paths do
+not depend on students renaming vendor files.
+
 ## Stop and Ask for Help
 
 - A file is reported as `invalid_xml` or `unknown_xml`.

@@ -506,6 +506,25 @@ def render_validation_report(report: dict) -> str:
     return "\n".join(lines)
 
 
+def build_approval_template(report: dict, report_path: Path) -> dict:
+    """Create a locked-down-by-default staff approval record."""
+    digest = hashlib.sha256(report_path.read_bytes()).hexdigest()
+    return {
+        "schema_version": 1,
+        "match_slug": report["slug"],
+        "season": str(report["season"]),
+        "intake_report_sha256": digest,
+        "reviewed_by": "",
+        "reviewed_at": "",
+        "approvals": {
+            "source_archive": False,
+            "match_analytics": False,
+            "coug_scoring": False,
+        },
+        "notes": "",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=Path, required=True, help="Folder containing loose vendor exports")
@@ -545,6 +564,10 @@ def main() -> None:
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     (output_dir / f"{args.slug}_validation_report.md").write_text(
         render_validation_report(report),
+        encoding="utf-8",
+    )
+    (output_dir / f"{args.slug}_approval.json").write_text(
+        json.dumps(build_approval_template(report, report_path), indent=2, sort_keys=True),
         encoding="utf-8",
     )
     if events:

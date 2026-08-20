@@ -74,6 +74,17 @@ Expected: `0 error(s), 0 warning(s)` and `all checks passed`.
 .venv/bin/python pipeline/ingestion/batch_parse.py --season 2025 --slug <match_slug>
 ```
 
+For new loose-named 2026 match bundles, use the reviewed promotion workflow
+instead of the legacy fixed-name registrar:
+
+```bash
+.venv/bin/python pipeline/ingestion/promote_match_intake.py \
+  --source-dir "/path/to/00_source" \
+  --bundle-dir "/path/to/20_generated"
+```
+
+Add `--apply` only after reviewing the promotion receipt.
+
 ### Reconcile COUG scores
 ```bash
 .venv/bin/python pipeline/analytics/reconcile_coug_scores.py --season 2025

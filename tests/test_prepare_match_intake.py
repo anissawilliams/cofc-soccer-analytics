@@ -10,6 +10,7 @@ INGESTION_DIR = Path(__file__).resolve().parents[1] / "pipeline" / "ingestion"
 sys.path.insert(0, str(INGESTION_DIR))
 
 from prepare_match_intake import (  # noqa: E402
+    build_approval_template,
     build_match_flow_snapshot,
     build_intake_report,
     build_validation_summary,
@@ -179,6 +180,10 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(saved["metadata"]["opponent"], "Opponent FC")
         self.assertTrue((output_dir / "2026-08-20_opponent_validation_report.md").exists())
         self.assertTrue((output_dir / "2026-08-20_opponent_match_flow.json").exists())
+        approval_path = output_dir / "2026-08-20_opponent_approval.json"
+        approval = json.loads(approval_path.read_text(encoding="utf-8"))
+        self.assertEqual(approval, build_approval_template(saved, output_dir / "2026-08-20_opponent_intake_report.json"))
+        self.assertFalse(any(approval["approvals"].values()))
 
 
 if __name__ == "__main__":

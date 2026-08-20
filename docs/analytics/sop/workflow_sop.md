@@ -91,9 +91,39 @@ recorded explicitly. Parser or mapping changes require tests and code review.
 
 ## 7. Publish
 
-Publication is a separate, credentialed staff action. Run the appropriate
-preflight checks before writing canonical data or updating dashboard snapshots.
-Raw Wyscout and Spiideo files remain outside Git; only intentional compact inputs,
+Publication is a separate, credentialed staff action. The generated
+`<slug>_approval.json` begins with every approval set to `false`. A staff reviewer:
+
+1. reads `<slug>_validation_report.md` and checks the generated outputs;
+2. enters their name and a timezone-aware ISO timestamp, such as
+   `2026-08-20T18:30:00-04:00`;
+3. changes only the approved products to `true` and records any notes;
+4. runs the promotion command without `--apply`;
+5. reads `<slug>_promotion_receipt.json`; and
+6. reruns with `--apply` only when the preview is correct.
+
+```bash
+.venv/bin/python pipeline/ingestion/promote_match_intake.py \
+  --source-dir "/path/to/00_source" \
+  --bundle-dir "/path/to/20_generated"
+
+.venv/bin/python pipeline/ingestion/promote_match_intake.py \
+  --source-dir "/path/to/00_source" \
+  --bundle-dir "/path/to/20_generated" \
+  --apply
+```
+
+The apply step requires staff-controlled `SUPABASE_URL` and
+`SUPABASE_SERVICE_KEY` values. It uploads raw sources and approved artifacts to
+the private `source-files` bucket, then upserts one `public.source_file` row per
+object. Paths include the SHA-256 fingerprint, so revised downloads do not
+overwrite earlier files and rerunning the same bundle is idempotent. If a
+matching season/date session exists, the rows are linked to it; otherwise they
+remain traceable by season and match slug and the receipt prints a warning.
+
+This step archives and registers the approved intake. COUG score calculation is
+still a separate staff publication after coach-confirmed scoring rules. Raw
+Wyscout and Spiideo files remain outside Git; only intentional compact inputs,
 configuration, code, tests, and approved snapshots are versioned.
 
 ## Change Log
