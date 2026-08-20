@@ -1,0 +1,53 @@
+{
+  "version": "canonical_team_events_v1",
+  "slug": "2025-11-02_uncw",
+  "session_date": "2025-11-02",
+  "home_team": "Charleston Cougars",
+  "away_team": "UNCW Seahawks",
+  "window_minutes": 5,
+  "pressure_weights": {
+    "goal": 5.0,
+    "scoring_opportunity": 3.0,
+    "shot": 2.0,
+    "counter_attack": 1.5,
+    "corner": 1.0,
+    "direct_free_kick": 0.8,
+    "free_kick": 0.4,
+    "cross": 0.25,
+    "throw_in": 0.1,
+    "goalkeeper_distribution": 0.08,
+    "attacking_phase": 0.05
+  },
+  "bins": [
+    {"start": 0, "home": 6.83, "away": 0.56, "note": "Opening chance, shot and corner for Charleston"},
+    {"start": 5, "home": 4.23, "away": 2.21, "note": "Charleston chance; UNCW corner and wide activity"},
+    {"start": 10, "home": 0.23, "away": 1.21, "note": "UNCW controls the quieter passage"},
+    {"start": 15, "home": 0.38, "away": 1.89, "note": "UNCW corner and cross"},
+    {"start": 20, "home": 10.16, "away": 1.20, "note": "22.2′ Lenert goal · scoring opportunity · shot"},
+    {"start": 25, "home": 3.83, "away": 9.13, "note": "UNCW produces two chances and a shot"},
+    {"start": 30, "home": 1.08, "away": 0.48, "note": "Charleston settles possession"},
+    {"start": 35, "home": 0.13, "away": 12.70, "note": "UNCW counterattacks · two chances · shot"},
+    {"start": 40, "home": 0.85, "away": 1.01, "note": "Balanced close to the first half"},
+    {"start": 45, "home": 5.71, "away": 1.93, "note": "Charleston chance and shot after halftime"},
+    {"start": 50, "home": 0.66, "away": 7.80, "note": "UNCW chance and two shots"},
+    {"start": 55, "home": 0.46, "away": 1.83, "note": "UNCW sustained wide pressure"},
+    {"start": 60, "home": 5.96, "away": 5.21, "note": "Chances at both ends; Charleston shot at 64.2′"},
+    {"start": 65, "home": 0.38, "away": 8.15, "note": "65.8′ Shannon goal · UNCW shot at 69′"},
+    {"start": 70, "home": 0.48, "away": 5.05, "note": "UNCW chance and repeated crosses"},
+    {"start": 75, "home": 1.03, "away": 3.21, "note": "UNCW shot and corner"},
+    {"start": 80, "home": 0.55, "away": 1.53, "note": "Low-intensity UNCW edge"},
+    {"start": 85, "home": 1.63, "away": 1.33, "note": "Balanced late pressure"},
+    {"start": 90, "home": 5.80, "away": 0.90, "note": "92.4′ Emanuele goal"},
+    {"start": 95, "home": 0.16, "away": 6.03, "note": "UNCW chance and shot in final push"}
+  ],
+  "goals": [
+    {"minute": 22.2, "team": "Charleston Cougars", "label": "Lenert"},
+    {"minute": 65.8, "team": "UNCW Seahawks", "label": "Shannon"},
+    {"minute": 92.4, "team": "Charleston Cougars", "label": "Emanuele"}
+  ],
+  "coverage": {
+    "canonical_events": 265,
+    "mirrored_events": 261,
+    "unmapped_labels": 0
+  }
+}

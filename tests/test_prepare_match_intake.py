@@ -8,6 +8,7 @@ INGESTION_DIR = Path(__file__).resolve().parents[1] / "pipeline" / "ingestion"
 sys.path.insert(0, str(INGESTION_DIR))
 
 from prepare_match_intake import (  # noqa: E402
+    build_match_flow_snapshot,
     build_intake_report,
     discover_exports,
     merge_team_event_pair,
@@ -70,6 +71,15 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(goal["team"], "Opponent FC")
         self.assertEqual(goal["half"], 2)
         self.assertEqual(goal["match_minute"], 55.0)
+
+    def test_match_flow_uses_two_team_canonical_pressure(self):
+        events, summary = merge_team_event_pair([self.cofc, self.opponent], "2026-08-20_opponent")
+        flow = build_match_flow_snapshot(events, summary, "2026-08-20_opponent")
+        self.assertEqual(flow["home_team"], "Charleston Cougars")
+        self.assertEqual(flow["away_team"], "Opponent FC")
+        self.assertEqual(flow["bins"][2]["home"], 2.0)
+        self.assertEqual(flow["bins"][11]["away"], 5.0)
+        self.assertEqual(flow["goals"], [{"minute": 55.0, "team": "Opponent FC"}])
 
     def test_intake_separates_analytics_from_scoring_readiness(self):
         report, events = build_intake_report(self.root, "2026-08-20_opponent")

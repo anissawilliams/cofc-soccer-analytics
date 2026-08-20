@@ -71,6 +71,8 @@ data/
 !pipeline/data/schedules/*.csv
 !pipeline/data/manifests/
 !pipeline/data/manifests/*.csv
+!pipeline/data/match_flow/
+!pipeline/data/match_flow/*.json
 # ── Secrets ───────────────────────────────────────────────────
 *.pem
 *.key

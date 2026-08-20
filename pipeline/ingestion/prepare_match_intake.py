@@ -13,6 +13,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -56,6 +57,20 @@ LABEL_MAP = {
     "Defending style of play": ("attacking_phase", "opponent"),
     "Goalkeeper's distribution": ("goalkeeper_distribution", "self"),
     "Opposition goalkeeper's distributions": ("goalkeeper_distribution", "opponent"),
+}
+
+MATCH_FLOW_PRESSURE_WEIGHTS = {
+    "goal": 5.0,
+    "scoring_opportunity": 3.0,
+    "shot": 2.0,
+    "counter_attack": 1.5,
+    "corner": 1.0,
+    "direct_free_kick": 0.8,
+    "free_kick": 0.4,
+    "cross": 0.25,
+    "throw_in": 0.1,
+    "goalkeeper_distribution": 0.08,
+    "attacking_phase": 0.05,
 }
 
 
@@ -213,6 +228,57 @@ def merge_team_event_pair(team_files: list[Path], slug: str) -> tuple[list[dict]
     return events, summary
 
 
+def build_match_flow_snapshot(events: list[dict], summary: dict, slug: str) -> dict:
+    """Aggregate canonical two-team events into reviewed five-minute pressure windows."""
+    teams = summary.get("teams") or []
+    if len(teams) != 2:
+        raise ValueError(f"Match Flow requires two teams; found {teams}")
+
+    end_minute = max(90.0, max((float(event.get("match_minute") or 0) for event in events), default=90.0))
+    bin_count = max(18, math.ceil(end_minute / 5))
+    bins = [
+        {"start": index * 5, "home": 0.0, "away": 0.0, "event_counts": {}}
+        for index in range(bin_count)
+    ]
+    goals = []
+
+    for event in events:
+        minute = max(0.0, float(event.get("match_minute") or 0))
+        index = min(bin_count - 1, int(minute // 5))
+        event_type = event.get("event_type") or "unknown"
+        weight = MATCH_FLOW_PRESSURE_WEIGHTS.get(event_type, 0.0)
+        side = "home" if event.get("team") == teams[0] else "away"
+        bins[index][side] = round(bins[index][side] + weight, 2)
+        count_key = f"{side}:{event_type}"
+        bins[index]["event_counts"][count_key] = bins[index]["event_counts"].get(count_key, 0) + 1
+        if event_type == "goal":
+            goals.append({"minute": minute, "team": event.get("team")})
+
+    for item in bins:
+        highlights = sorted(item.pop("event_counts").items(), key=lambda pair: (-pair[1], pair[0]))[:3]
+        item["note"] = " · ".join(
+            f"{key.split(':', 1)[0].title()} {event_type.replace('_', ' ')} ×{count}"
+            for key, count in highlights
+            for event_type in [key.split(':', 1)[1]]
+        ) or "No canonical team events"
+
+    return {
+        "version": "canonical_team_events_v1",
+        "slug": slug,
+        "home_team": teams[0],
+        "away_team": teams[1],
+        "window_minutes": 5,
+        "pressure_weights": MATCH_FLOW_PRESSURE_WEIGHTS,
+        "bins": bins,
+        "goals": goals,
+        "coverage": {
+            "canonical_events": summary.get("canonical_events", len(events)),
+            "mirrored_events": summary.get("mirrored_events", 0),
+            "unmapped_labels": len(summary.get("unmapped_labels") or {}),
+        },
+    }
+
+
 def write_events(path: Path, events: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
@@ -356,6 +422,11 @@ def main() -> None:
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     if events:
         write_events(output_dir / f"{args.slug}_canonical_team_events.csv", events)
+        flow = build_match_flow_snapshot(events, report["team_event_summary"], args.slug)
+        (output_dir / f"{args.slug}_match_flow.json").write_text(
+            json.dumps(flow, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
     if scoring_data:
         write_rows(output_dir / f"{args.slug}_players.csv", scoring_data["player_events"])
         write_rows(output_dir / f"{args.slug}_all_player_events.csv", scoring_data["all_player_events"])

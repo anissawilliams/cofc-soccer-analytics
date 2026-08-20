@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from backend.match_flow import get_match_flow
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
@@ -788,6 +789,7 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
     empty = {
         "session_id": session_id,
         "match": None,
+        "flow": {"available": False, "reason": "match metadata unavailable"},
         "summary": {
             "events": 0,
             "players": 0,
@@ -952,6 +954,11 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
                 **totals,
                 **peak_coverage,
             },
+            "flow": get_match_flow(
+                session.get("session_date"),
+                home.get("name"),
+                away.get("name"),
+            ),
             "events": events,
         }
     except Exception as exc:
