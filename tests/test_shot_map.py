@@ -5,21 +5,61 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import db
 from backend.shot_map import DEFAULT_SHOT_MAP_DIR, get_shot_map
+
+
+class FakeMatchQuery:
+    def select(self, *_args):
+        return self
+
+    def eq(self, *_args):
+        return self
+
+    def execute(self):
+        return type("Response", (), {"data": [{
+            "id": "match-1",
+            "session_id": "session-1",
+            "result": "W",
+            "goals_for": 2,
+            "goals_against": 1,
+            "session": {"session_date": "2025-11-02", "season": "2025"},
+            "home_team": {"name": "College of Charleston", "short_name": "CofC", "is_cofc": True},
+            "away_team": {"name": "NC Wilmington", "short_name": "UNCW", "is_cofc": False},
+        }]})()
+
+
+class FakeMatchClient:
+    def table(self, name):
+        if name != "match":
+            raise AssertionError(f"Unexpected table: {name}")
+        return FakeMatchQuery()
 
 
 class ShotMapTests(unittest.TestCase):
     def test_tracked_uncw_snapshot_has_reviewed_chances_for_both_teams(self):
         with patch.dict(os.environ, {"COFC_SHOT_MAP_DIR": str(DEFAULT_SHOT_MAP_DIR)}, clear=False):
-            result = get_shot_map("2025-11-02", "Charleston Cougars", "UNCW Seahawks")
+            result = get_shot_map(
+                "2025-11-02",
+                "College of Charleston",
+                "NC Wilmington",
+                ("CofC",),
+                ("UNCW",),
+            )
         self.assertTrue(result["available"])
         self.assertEqual(len(result["shots"]), 17)
-        self.assertEqual(result["team_summaries"]["Charleston Cougars"]["xg"], 1.09)
+        self.assertEqual(result["team_summaries"]["College of Charleston"]["xg"], 1.09)
         self.assertEqual(result["coverage"]["located_shots"], 17)
 
-    def test_supabase_team_aliases_load_and_remap_reviewed_snapshot(self):
+    def test_db_short_names_load_and_remap_reviewed_snapshot(self):
         with patch.dict(os.environ, {"COFC_SHOT_MAP_DIR": str(DEFAULT_SHOT_MAP_DIR)}, clear=False):
-            result = get_shot_map("2025-11-02", "College of Charleston", "NC Wilmington")
+            result = get_shot_map(
+                "2025-11-02",
+                "College of Charleston",
+                "NC Wilmington",
+                ("CofC",),
+                ("UNCW",),
+            )
 
         self.assertTrue(result["available"])
         self.assertEqual(result["home_team"], "College of Charleston")
@@ -72,6 +112,24 @@ class ShotMapFrontendContractTests(unittest.TestCase):
         self.assertIn("SHOT DATA PENDING", source)
         self.assertIn("Marker area = xG", source)
         self.assertIn("staffApiFetch(`/api/shot-map/${sessionId}`)", source)
+
+
+class ShotMapDatabaseContractTests(unittest.TestCase):
+    def test_db_passes_canonical_names_and_short_names_to_snapshot_loader(self):
+        with (
+            patch.object(db, "get_client", return_value=FakeMatchClient()),
+            patch.object(db, "load_shot_map", return_value={"available": True}) as loader,
+        ):
+            result = db.get_match_shot_map("session-1")
+
+        self.assertTrue(result["shot_map"]["available"])
+        loader.assert_called_once_with(
+            "2025-11-02",
+            "College of Charleston",
+            "NC Wilmington",
+            ("CofC",),
+            ("UNCW",),
+        )
 
 
 if __name__ == "__main__":
