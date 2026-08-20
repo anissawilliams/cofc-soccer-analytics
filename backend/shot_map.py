@@ -15,6 +15,42 @@ def _unavailable(reason: str) -> dict:
     return {"available": False, "reason": reason}
 
 
+def _team_key(name: str | None) -> str:
+    return " ".join((name or "").casefold().split())
+
+
+def _requested_team_lookup(
+    home_team: str,
+    away_team: str,
+    home_aliases: tuple[str, ...],
+    away_aliases: tuple[str, ...],
+) -> dict[str, str]:
+    """Build an exact lookup from canonical team names and DB-provided aliases."""
+    lookup = {}
+    for canonical, aliases in ((home_team, home_aliases), (away_team, away_aliases)):
+        for name in (canonical, *aliases):
+            if name:
+                lookup[_team_key(name)] = canonical
+    return lookup
+
+
+def _use_requested_team_names(payload: dict, requested: dict[str, str]) -> dict:
+    """Replace stored aliases with the canonical team names from Supabase."""
+    snapshot_names = (payload["home_team"], payload["away_team"])
+    mapping = {name: requested[_team_key(name)] for name in snapshot_names}
+    payload["home_team"] = mapping[snapshot_names[0]]
+    payload["away_team"] = mapping[snapshot_names[1]]
+    payload["shots"] = [
+        {**shot, "team": mapping[shot["team"]]}
+        for shot in payload["shots"]
+    ]
+    payload["team_summaries"] = {
+        mapping[team]: summary
+        for team, summary in payload["team_summaries"].items()
+    }
+    return payload
+
+
 def _valid_payload(payload: object) -> bool:
     if not isinstance(payload, dict):
         return False
@@ -50,6 +86,8 @@ def get_shot_map(
     session_date: str | None,
     home_team: str | None = None,
     away_team: str | None = None,
+    home_aliases: tuple[str, ...] = (),
+    away_aliases: tuple[str, ...] = (),
 ) -> dict:
     """Return the reviewed snapshot that matches a date and, when known, both teams."""
     if not session_date:
@@ -60,7 +98,11 @@ def get_shot_map(
     if not candidates:
         return _unavailable("reviewed shot locations have not been published for this match")
 
-    requested_teams = {home_team, away_team} if home_team and away_team else None
+    requested = (
+        _requested_team_lookup(home_team, away_team, home_aliases, away_aliases)
+        if home_team and away_team
+        else None
+    )
     saw_invalid = False
     for path in candidates:
         try:
@@ -71,13 +113,15 @@ def get_shot_map(
         if not _valid_payload(payload):
             saw_invalid = True
             continue
-        payload_teams = {payload["home_team"], payload["away_team"]}
-        if requested_teams and payload_teams != requested_teams:
+        payload_team_keys = {_team_key(payload["home_team"]), _team_key(payload["away_team"])}
+        if requested and (
+            not payload_team_keys.issubset(requested)
+            or len({requested[key] for key in payload_team_keys}) != 2
+        ):
             continue
 
-        if home_team and away_team:
-            payload["home_team"] = home_team
-            payload["away_team"] = away_team
+        if requested:
+            payload = _use_requested_team_names(payload, requested)
         return {"available": True, **payload}
 
     if saw_invalid:

@@ -1014,6 +1014,8 @@ def get_match_shot_map(session_id: str) -> dict:
                 session.get("session_date"),
                 home.get("name"),
                 away.get("name"),
+                tuple(filter(None, [home.get("short_name")])),
+                tuple(filter(None, [away.get("short_name")])),
             ),
         }
     except Exception as exc:
