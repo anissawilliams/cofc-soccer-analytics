@@ -31,6 +31,17 @@ class MatchIntakeNotebookTests(unittest.TestCase):
         self.assertNotIn("write_db", code)
         self.assertNotIn("load_match", code)
 
+    def test_notebook_handles_empty_source_summary(self):
+        document = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+        code = "\n".join(
+            "".join(cell["source"])
+            for cell in document["cells"]
+            if cell["cell_type"] == "code"
+        )
+
+        self.assertIn("report.get('source_manifest') or []", code)
+        self.assertIn("(report.get('team_event_summary') or {}).get('unmapped_labels')", code)
+
 
 if __name__ == "__main__":
     unittest.main()
