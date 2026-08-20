@@ -24,7 +24,8 @@ import db
 from backend.schedule_data import load_api_schedule
 from backend.season_config import get_active_season, season_payload
 from backend.cache import ttl_cached
-from backend.read_models import snapshot_value
+from backend.coug_table import public_score_rows
+from backend.read_models import published_snapshot_value, snapshot_value
 from backend.staff_auth import (
     StaffAuthNotConfigured,
     authenticate_staff,
@@ -310,10 +311,15 @@ def get_schedule(season: Optional[str] = None):
 def get_coug_scores_with_minutes(session_id: str, season: Optional[str] = None):
     """COUG scores + minutes for a single match."""
     if season:
-        snapshot = snapshot_value(season, "match_scores", session_id)
+        snapshot = published_snapshot_value(
+            season,
+            db.COUG_TABLE_WEIGHT_VERSION,
+            "match_scores",
+            session_id,
+        )
         if snapshot is not None:
-            return snapshot
-    return db.get_coug_scores_with_minutes(session_id)
+            return public_score_rows(snapshot)
+    return public_score_rows(db.get_coug_scores_with_minutes(session_id))
 
 
 @app.get("/api/match-story/{session_id}")
@@ -339,10 +345,14 @@ def get_shot_map(
 @ttl_cached()
 def get_coug_leaderboard_with_minutes(season: str):
     """Season leaderboard with aggregated scores and total minutes."""
-    snapshot = snapshot_value(season, "leaderboard")
+    snapshot = published_snapshot_value(
+        season,
+        db.COUG_TABLE_WEIGHT_VERSION,
+        "leaderboard",
+    )
     if snapshot is not None:
-        return snapshot
-    return db.get_season_leaderboard_with_minutes(season)
+        return public_score_rows(snapshot)
+    return public_score_rows(db.get_season_leaderboard_with_minutes(season))
 
 
 @app.get("/api/player-match-history/{athlete_id}")
@@ -353,10 +363,16 @@ def get_player_match_history(
 ):
     """Published per-match COUG score + minutes history for one player."""
     selected_season = season or get_active_season()
-    snapshot = snapshot_value(selected_season, "players", athlete_id, "match_history")
+    snapshot = published_snapshot_value(
+        selected_season,
+        db.COUG_TABLE_WEIGHT_VERSION,
+        "players",
+        athlete_id,
+        "match_history",
+    )
     if snapshot is not None:
-        return snapshot
-    return db.get_player_match_history(athlete_id, selected_season)
+        return public_score_rows(snapshot)
+    return public_score_rows(db.get_player_match_history(athlete_id, selected_season))
 
 
 @app.get("/api/player-coug-trace/{athlete_id}")

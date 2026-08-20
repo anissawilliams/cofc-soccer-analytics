@@ -23,7 +23,7 @@ from backend.read_models import read_model_dir  # noqa: E402
 
 
 def build_read_model(season: str, weight_version: str = "trial_1") -> dict:
-    leaderboard = db.get_season_leaderboard_with_minutes(season)
+    leaderboard = db.get_season_leaderboard_with_minutes(season, weight_version)
     players = {}
     session_ids = set()
 
@@ -31,7 +31,7 @@ def build_read_model(season: str, weight_version: str = "trial_1") -> dict:
         athlete_id = player.get("athlete_id")
         if not athlete_id:
             continue
-        history = db.get_player_match_history(athlete_id, season)
+        history = db.get_player_match_history(athlete_id, season, weight_version)
         session_ids.update(row.get("session_id") for row in history if row.get("session_id"))
         players[athlete_id] = {
             "match_history": history,
@@ -43,7 +43,7 @@ def build_read_model(season: str, weight_version: str = "trial_1") -> dict:
         }
 
     match_scores = {
-        session_id: db.get_coug_scores_with_minutes(session_id)
+        session_id: db.get_coug_scores_with_minutes(session_id, weight_version)
         for session_id in sorted(session_ids)
     }
     return {

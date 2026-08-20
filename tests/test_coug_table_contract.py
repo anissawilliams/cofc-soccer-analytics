@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from backend.coug_table import public_score_rows
 from db import (
     _is_published_match_score,
     get_coug_scores_with_minutes,
@@ -62,6 +63,15 @@ def score_row(*, score_type="match", version="trial_1", session_id="session-1"):
 
 
 class CougTableDataContractTests(unittest.TestCase):
+    def test_per90_is_derived_by_the_backend_contract(self):
+        rows = public_score_rows([
+            {"total_score": 10, "minutes_played": 90},
+            {"total_score": 10, "minutes_played": 19},
+        ])
+
+        self.assertEqual(rows[0]["total_per90"], 10)
+        self.assertIsNone(rows[1]["total_per90"])
+
     def test_public_table_accepts_only_reviewed_match_scores_for_one_version(self):
         reviewed = {
             "score_type": "match",

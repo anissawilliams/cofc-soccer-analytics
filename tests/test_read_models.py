@@ -30,6 +30,29 @@ class ReadModelTests(unittest.TestCase):
                 (Path(directory) / "coug_2025.json").write_text("not-json")
                 self.assertIsNone(read_models.load_season_read_model("2025"))
 
+    def test_published_snapshot_requires_matching_season_and_weight_version(self):
+        payload = {
+            "schema_version": 2,
+            "season": "2025",
+            "weight_version": "trial_1",
+            "leaderboard": [{"athlete_id": "p1"}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "coug_2025.json").write_text(json.dumps(payload))
+            with patch.dict(os.environ, {"COFC_READ_MODEL_DIR": directory}):
+                read_models._file_cache.clear()
+                self.assertEqual(
+                    read_models.published_snapshot_value(
+                        "2025", "trial_1", "leaderboard"
+                    ),
+                    [{"athlete_id": "p1"}],
+                )
+                self.assertIsNone(
+                    read_models.published_snapshot_value(
+                        "2025", "experimental", "leaderboard"
+                    )
+                )
+
     def test_empty_snapshot_is_rejected_by_default(self):
         payload = {"schema_version": 1, "season": "2025", "leaderboard": []}
         with self.assertRaises(RuntimeError):

@@ -36,10 +36,6 @@ async function apiFetch(path) {
   return cachedApiFetch(API, path);
 }
 
-function per90(score, minutes) {
-  if (!minutes || minutes < 20) return null;
-  return (score / minutes) * 90;
-}
 function fmtScore(v) {
   if (v === null || v === undefined) return "—";
   return Number(v).toFixed(2);
@@ -122,7 +118,6 @@ function TableHeader({ isSeason }) {
 
 // ─── Player row ───────────────────────────────────────────────────────────────
 function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
-  const p90 = per90(player.total_score, player.minutes_played);
   const isTop3 = rank <= 3;
   const bg = selected ? T.surface2 : "transparent";
   const rankColor = rank === 1 ? T.gold : rank === 2 ? T.textMuted : rank === 3 ? "#cd7f32" : T.muted;
@@ -213,10 +208,10 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
         <div style={{ textAlign: "right" }}>
           <span style={{
             fontSize: 12, fontWeight: 500,
-            color: p90 !== null ? T.goldDim : T.muted,
+            color: player.total_per90 !== null ? T.goldDim : T.muted,
             fontVariantNumeric: "tabular-nums",
           }}>
-            {p90 !== null ? fmtScore(p90) : "—"}
+            {player.total_per90 !== null ? fmtScore(player.total_per90) : "—"}
           </span>
         </div>
       )}
@@ -230,7 +225,6 @@ function PlayerPanel({ player, history }) {
   const avg = history.length
     ? history.reduce((s, m) => s + (m.total_score || 0), 0) / history.length
     : 0;
-  const p90 = per90(player.total_score, player.minutes_played);
 
   return (
     <div style={{
@@ -305,7 +299,7 @@ function PlayerPanel({ player, history }) {
           <div style={{ background: T.surface2, border: `1px solid ${T.borderGold}`, borderRadius: 6, padding: "10px 12px" }}>
             <div style={{ fontSize: 11, color: T.muted, letterSpacing: 1 }}>SCORE / 90</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.gold }}>
-              {p90 !== null ? fmtScore(p90) : "—"}
+              {player.total_per90 !== null ? fmtScore(player.total_per90) : "—"}
             </div>
           </div>
         </div>
@@ -469,7 +463,7 @@ export default function CougTable() {
       total: (a, b) => (b.total_score || 0) - (a.total_score || 0),
       aset:  (a, b) => (b.aset_score  || 0) - (a.aset_score  || 0),
       peak:  (a, b) => (b.peak_score  || 0) - (a.peak_score  || 0),
-      per90: (a, b) => (per90(b.total_score, b.minutes_played) ?? -1) - (per90(a.total_score, a.minutes_played) ?? -1),
+      per90: (a, b) => (b.total_per90 ?? -1) - (a.total_per90 ?? -1),
     };
     return [...d].sort(sorts[sortBy] || sorts.total);
   }, [data, sortBy, filterPos]);
