@@ -1,5 +1,27 @@
 # Notebooks
 
+## 2026_match_intake.ipynb — current post-match intake
+
+This is the supported undergraduate-facing Google Colab workflow. It mounts the
+shared Drive, accepts original Wyscout filenames, runs the tested intake parser,
+shows analytics and scoring readiness separately, and creates a review bundle.
+It cannot publish to Supabase.
+
+1. Open the notebook in Colab.
+2. Fill in the setup cell and leave `CREATE_REVIEW_BUNDLE = False`.
+3. Run through the inspection and review all warnings.
+4. Set `CREATE_REVIEW_BUNDLE = True` and create the bundle.
+5. Send the validation report to the staff reviewer.
+
+See `docs/analytics/sop/workflow_sop.md` for the complete handoff.
+The student download and file-extension checklist is in
+[`../data/MATCH_INTAKE_README.md`](../data/MATCH_INTAKE_README.md).
+
+## Legacy and exploratory notebooks
+
+The notebooks below document earlier or exploratory workflows. Do not use them
+for 2026 production intake unless a staff maintainer explicitly asks you to.
+
 Run these in order. Each notebook is self-contained and saves its outputs automatically.
 
 ---

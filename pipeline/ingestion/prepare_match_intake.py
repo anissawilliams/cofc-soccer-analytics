@@ -83,6 +83,7 @@ class XmlProfile:
     player_events: int
     mapped_team_events: int
     period_markers: int
+    error: str = ""
 
 
 def _instances(path: Path) -> list[dict]:
@@ -102,7 +103,19 @@ def _instances(path: Path) -> list[dict]:
 
 
 def profile_xml(path: Path) -> XmlProfile:
-    rows = _instances(path)
+    try:
+        rows = _instances(path)
+    except Exception as exc:
+        return XmlProfile(
+            path=path,
+            kind="invalid_xml",
+            team="",
+            instances=0,
+            player_events=0,
+            mapped_team_events=0,
+            period_markers=0,
+            error=f"{type(exc).__name__}: {exc}",
+        )
     player_events = sum(bool(PLAYER_CODE.fullmatch(row["code"])) for row in rows)
     mapped_team_events = sum(
         label in LABEL_MAP for row in rows for label in row["labels"]
@@ -138,6 +151,23 @@ def profile_xml(path: Path) -> XmlProfile:
 
 def discover_exports(input_dir: Path) -> list[XmlProfile]:
     return [profile_xml(path) for path in sorted(input_dir.rglob("*.xml"))]
+
+
+def inventory_source_files(input_dir: Path) -> list[dict]:
+    """Create a content-addressed inventory without changing vendor files."""
+    inventory = []
+    for path in sorted(candidate for candidate in input_dir.rglob("*") if candidate.is_file()):
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        inventory.append({
+            "relative_path": path.relative_to(input_dir).as_posix(),
+            "extension": path.suffix.lower(),
+            "size_bytes": path.stat().st_size,
+            "sha256": digest.hexdigest(),
+        })
+    return inventory
 
 
 def _period_anchors(team_files: list[Path]) -> dict[str, float]:
@@ -361,6 +391,7 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
 
 def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
     profiles = discover_exports(input_dir)
+    source_manifest = inventory_source_files(input_dir)
     team_profiles = [profile for profile in profiles if profile.kind == "team_event_xml"]
     distinct_teams = {profile.team for profile in team_profiles if profile.team}
 
@@ -375,23 +406,123 @@ def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
     report = {
         "slug": slug,
         "input_dir": str(input_dir),
+        "source_manifest": source_manifest,
         "scoring": {"ready": False, "reason": "not yet roster-validated"},
         "analytics": {"ready": analytics_ready, "reason": analytics_reason},
         "files": [
             {
                 "name": profile.path.name,
+                "relative_path": profile.path.relative_to(input_dir).as_posix(),
                 "kind": profile.kind,
                 "team": profile.team,
                 "instances": profile.instances,
                 "player_events": profile.player_events,
                 "mapped_team_events": profile.mapped_team_events,
                 "period_markers": profile.period_markers,
+                "error": profile.error,
             }
             for profile in profiles
         ],
         "team_event_summary": team_summary,
     }
     return report, events
+
+
+def build_validation_summary(report: dict) -> dict:
+    invalid_xml = [row for row in report.get("files", []) if row.get("kind") == "invalid_xml"]
+    unknown_xml = [row for row in report.get("files", []) if row.get("kind") == "unknown_xml"]
+    unmapped = (report.get("team_event_summary") or {}).get("unmapped_labels") or {}
+    source_count = len(report.get("source_manifest") or [])
+
+    blocking = []
+    attention = []
+    if source_count == 0:
+        blocking.append("No source files were found.")
+    if invalid_xml:
+        blocking.append(f"{len(invalid_xml)} XML file(s) could not be read.")
+    if unknown_xml:
+        attention.append(f"{len(unknown_xml)} XML file(s) need classification.")
+    if unmapped:
+        attention.append(f"{len(unmapped)} Wyscout label(s) are not mapped yet.")
+    if not report.get("analytics", {}).get("ready"):
+        attention.append(report.get("analytics", {}).get("reason", "Match analytics are not ready."))
+    if not report.get("scoring", {}).get("ready"):
+        attention.append(report.get("scoring", {}).get("reason", "Player scoring is not ready."))
+
+    has_usable_output = bool(
+        report.get("analytics", {}).get("ready") or report.get("scoring", {}).get("ready")
+    )
+    if blocking:
+        status = "blocked"
+    elif has_usable_output:
+        status = "ready_for_staff_review"
+    else:
+        status = "incomplete"
+    return {
+        "status": status,
+        "source_files": source_count,
+        "blocking_issues": blocking,
+        "items_for_review": attention,
+        "staff_approval_required": True,
+        "published": False,
+    }
+
+
+def render_validation_report(report: dict) -> str:
+    validation = report["validation"]
+    lines = [
+        f"# Match intake review: {report['slug']}",
+        "",
+        f"**Status:** `{validation['status']}`",
+        "",
+        "This bundle has not been published. Staff approval is required.",
+        "",
+        "## Readiness",
+        "",
+        f"- Match analytics: {'ready' if report['analytics']['ready'] else 'not ready'} — {report['analytics']['reason']}",
+        f"- COUG player scoring: {'ready' if report['scoring']['ready'] else 'not ready'} — {report['scoring']['reason']}",
+        f"- Source files inventoried: {validation['source_files']}",
+        "",
+    ]
+    if validation["blocking_issues"]:
+        lines.extend(["## Blocking issues", ""])
+        lines.extend(f"- {item}" for item in validation["blocking_issues"])
+        lines.append("")
+    if validation["items_for_review"]:
+        lines.extend(["## Items for staff review", ""])
+        lines.extend(f"- {item}" for item in validation["items_for_review"])
+        lines.append("")
+    lines.extend([
+        "## Source files",
+        "",
+        "| File | Size (bytes) | SHA-256 |",
+        "|---|---:|---|",
+    ])
+    lines.extend(
+        f"| `{item['relative_path']}` | {item['size_bytes']} | `{item['sha256']}` |"
+        for item in report.get("source_manifest", [])
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_approval_template(report: dict, report_path: Path) -> dict:
+    """Create a locked-down-by-default staff approval record."""
+    digest = hashlib.sha256(report_path.read_bytes()).hexdigest()
+    return {
+        "schema_version": 1,
+        "match_slug": report["slug"],
+        "season": str(report["season"]),
+        "intake_report_sha256": digest,
+        "reviewed_by": "",
+        "reviewed_at": "",
+        "approvals": {
+            "source_archive": False,
+            "match_analytics": False,
+            "coug_scoring": False,
+        },
+        "notes": "",
+    }
 
 
 def main() -> None:
@@ -401,6 +532,7 @@ def main() -> None:
     parser.add_argument("--slug", required=True)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--roster", type=Path, default=None, help="Season roster CSV used for scoring validation")
+    parser.add_argument("--metadata", type=Path, default=None, help="Optional match metadata JSON")
     parser.add_argument("--dry-run", action="store_true", help="Inspect and parse in memory without writing files")
     args = parser.parse_args()
 
@@ -410,6 +542,13 @@ def main() -> None:
     roster_path = args.roster or (Path(__file__).resolve().parent / f"roster_{args.season}.csv")
     scoring_status, scoring_data = validate_scoring_candidate(profiles, roster_path.resolve())
     report["scoring"] = scoring_status
+    report["season"] = str(args.season)
+    if args.metadata:
+        metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict):
+            raise ValueError("Match metadata must be a JSON object")
+        report["metadata"] = metadata
+    report["validation"] = build_validation_summary(report)
     print(json.dumps(report, indent=2, sort_keys=True))
     if args.dry_run:
         return
@@ -417,9 +556,20 @@ def main() -> None:
     output_dir = args.output_dir or (
         get_source_paths().parsed_outputs_dir / str(args.season) / args.slug
     )
+    output_dir = output_dir.resolve()
+    if output_dir == input_dir or input_dir in output_dir.parents:
+        raise ValueError("Output directory must not be inside the source directory")
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / f"{args.slug}_intake_report.json"
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    (output_dir / f"{args.slug}_validation_report.md").write_text(
+        render_validation_report(report),
+        encoding="utf-8",
+    )
+    (output_dir / f"{args.slug}_approval.json").write_text(
+        json.dumps(build_approval_template(report, report_path), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     if events:
         write_events(output_dir / f"{args.slug}_canonical_team_events.csv", events)
         flow = build_match_flow_snapshot(events, report["team_event_summary"], args.slug)

@@ -76,6 +76,7 @@ data/
 !pipeline/data/shot_maps/
 !pipeline/data/shot_maps/*.json
 !pipeline/data/shot_map_template.csv
+!pipeline/data/match_metadata_template.json
 # ── Secrets ───────────────────────────────────────────────────
 *.pem
 *.key

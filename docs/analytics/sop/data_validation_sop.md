@@ -1,47 +1,41 @@
-# Data Validation SOP
-**Purpose:**  
-Ensure data accuracy, consistency, and reliability across all sources.
+# Match Intake Validation
 
----
+## Status Meanings
 
-## 1. Checklist Overview
-Validation steps include:
-- File completeness  
-- Timestamp alignment  
-- Manual tag reconciliation  
-- Lineup and minutes verification  
-- Outlier detection  
+- `blocked`: no source files were found or an XML file could not be read.
+- `incomplete`: files were inventoried, but neither match analytics nor player
+  scoring has the required inputs.
+- `ready_for_staff_review`: at least one supported output can be generated. This
+  does not mean approved, published, or coach-ready.
 
----
+## Student Checklist
 
-## 2. Wyscout Validation
-Steps to validate:
--  
--  
+- Confirm season, date, opponent, location, competition, and score.
+- Confirm every downloaded source appears in the source manifest.
+- Check that every XML has a recognized classification.
+- Confirm the two team-event files identify two distinct teams.
+- Review canonical event counts and all unmapped labels.
+- For COUG scoring, confirm the player-coded file was detected and players match
+  the current roster.
+- Compare visible score, goal, shot, and lineup totals with the Wyscout report.
+- Record discrepancies in the handoff instead of editing parser output.
 
----
+## Staff Checklist
 
-## 3. Spideo Validation
-Steps to validate:
--  
--  
+- Resolve unknown labels and ambiguous player identities.
+- Confirm the correct match export and roster were used.
+- Spot-check timestamps across both halves.
+- Confirm corrections preserve raw-source provenance.
+- Review any shot coordinates, xG bounds, or manually entered fields.
+- Run scoring preflight checks before coach-facing publication.
 
----
+## Spiideo Validation
 
-## 4. Cross‑Source Reconciliation
-How to compare manual tags vs. event stream.
+Retain Spiideo XML as a separate raw source. Until real exports establish the
+contract, validate its identifiers, periods, timestamps, and clock behavior
+before matching it to Wyscout events. Store reconciliation confidence and do not
+invent missing event detail.
 
----
+## Change Log
 
-## 5. Outlier Review
-How to identify and investigate anomalies.
-
----
-
-## 6. Common Issues & Fixes
-Document recurring problems and solutions.
-
----
-
-## 7. Change Log
-- v0.1 — Scaffold created.
+- v1.0 — Defined intake statuses and 2026 review checks.
