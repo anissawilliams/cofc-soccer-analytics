@@ -11,19 +11,26 @@ DO NOT PUSH until XML scores are loaded into Supabase.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 import sys
 from pathlib import Path
 from typing import Optional
+from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import db
 from backend.schedule_data import load_api_schedule
 from backend.season_config import get_active_season, season_payload
 from backend.cache import ttl_cached
 from backend.read_models import snapshot_value
+from backend.staff_auth import (
+    StaffAuthNotConfigured,
+    authenticate_staff,
+    require_staff,
+    token_ttl_seconds,
+)
 
 
 app = FastAPI(title="Cougars Analytics API")
@@ -42,10 +49,20 @@ app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
 async def add_dashboard_cache_headers(request, call_next):
     response = await call_next(request)
     if request.url.path.startswith((
+        "/api/staff/",
+        "/api/match-story/",
+        "/api/player-coug-trace/",
+        "/api/player-stats",
+        "/api/roster/development",
+        "/api/leaders/",
+        "/api/team/passing",
+        "/api/team/shots-by-time",
+        "/api/team/formations",
+    )):
+        response.headers["Cache-Control"] = "no-store"
+    elif request.url.path.startswith((
         "/api/coug-leaderboard-with-minutes/",
         "/api/coug-scores-with-minutes",
-        "/api/player-match-history/",
-        "/api/player-coug-trace/",
     )):
         response.headers["Cache-Control"] = (
             "private, max-age=300, stale-while-revalidate=300"
@@ -55,6 +72,27 @@ async def add_dashboard_cache_headers(request, call_next):
 
 # ── PLAYERS ───────────────────────────────────────────────────────────────────
 
+
+class StaffLoginRequest(BaseModel):
+    passcode: str
+
+
+@app.post("/api/staff/login")
+def staff_login(payload: StaffLoginRequest):
+    """Exchange the server-held staff passcode for a short-lived bearer token."""
+    try:
+        token = authenticate_staff(payload.passcode)
+    except StaffAuthNotConfigured as exc:
+        raise HTTPException(status_code=503, detail="Staff access is not configured") from exc
+    if token is None:
+        raise HTTPException(status_code=401, detail="Incorrect staff passcode")
+    return {"token": token, "expires_in": token_ttl_seconds()}
+
+
+@app.get("/api/staff/session")
+def staff_session(_staff: None = Depends(require_staff)):
+    return {"authenticated": True}
+
 @app.get("/api/players")
 def get_players():
     """All active athletes."""
@@ -62,7 +100,10 @@ def get_players():
 
 
 @app.get("/api/player-stats")
-def get_player_stats(season: Optional[str] = None):
+def get_player_stats(
+    season: Optional[str] = None,
+    _staff: None = Depends(require_staff),
+):
     """Season stats per player. Event metrics null until XML loads."""
     return db.get_player_season_stats(season)
 
@@ -70,7 +111,11 @@ def get_player_stats(season: Optional[str] = None):
 # ── TEAM LEADERS ──────────────────────────────────────────────────────────────
 
 @app.get("/api/leaders/{metric}")
-def get_team_leaders(metric: str, season: Optional[str] = None):
+def get_team_leaders(
+    metric: str,
+    season: Optional[str] = None,
+    _staff: None = Depends(require_staff),
+):
     """
     Players sorted by a given metric.
     Returns empty list if metric data not yet available.
@@ -101,7 +146,10 @@ def get_team_leaders(metric: str, season: Optional[str] = None):
 # ── PASSING ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/team/passing")
-def get_team_passing(season: Optional[str] = None):
+def get_team_passing(
+    season: Optional[str] = None,
+    _staff: None = Depends(require_staff),
+):
     """Passing stats per player. Null until XML loads."""
     stats = db.get_player_season_stats(season)
     result = []
@@ -129,7 +177,10 @@ def get_team_passing(season: Optional[str] = None):
 
 @app.get("/api/roster/development")
 @ttl_cached()
-def get_roster_development(season: Optional[str] = None):
+def get_roster_development(
+    season: Optional[str] = None,
+    _staff: None = Depends(require_staff),
+):
     """
     Development targets by position.
     Status will be 'Pending Data' until XML pipeline populates event stats.
@@ -168,7 +219,10 @@ def get_coug_leaderboard(season: str):
 # ── SHOTS BY TIME ─────────────────────────────────────────────────────────────
 
 @app.get("/api/team/shots-by-time")
-def get_shots_by_time(season: Optional[str] = None):
+def get_shots_by_time(
+    season: Optional[str] = None,
+    _staff: None = Depends(require_staff),
+):
     """
     15-minute interval shot distribution.
     Returns null data until athlete_event is populated from XML.
@@ -188,7 +242,10 @@ def get_shots_by_time(season: Optional[str] = None):
 # ── FORMATIONS ────────────────────────────────────────────────────────────────
 
 @app.get("/api/team/formations")
-def get_formations(season: Optional[str] = None):
+def get_formations(
+    season: Optional[str] = None,
+    _staff: None = Depends(require_staff),
+):
     """
     Formation performance data.
     Returns empty until formation tracking is added to session/match notes.
@@ -259,7 +316,11 @@ def get_coug_scores_with_minutes(session_id: str, season: Optional[str] = None):
 
 
 @app.get("/api/match-story/{session_id}")
-def get_match_story(session_id: str, weight_version: str = "trial_1"):
+def get_match_story(
+    session_id: str,
+    weight_version: str = "trial_1",
+    _staff: None = Depends(require_staff),
+):
     """Chronological player-event story for one match session."""
     return db.get_match_story(session_id, weight_version)
 
@@ -276,8 +337,11 @@ def get_coug_leaderboard_with_minutes(season: str):
 
 @app.get("/api/player-match-history/{athlete_id}")
 @ttl_cached()
-def get_player_match_history(athlete_id: str, season: Optional[str] = None):
-    """Per-match score + minutes history for a single player."""
+def get_player_match_history(
+    athlete_id: str,
+    season: Optional[str] = None,
+):
+    """Published per-match COUG score + minutes history for one player."""
     selected_season = season or get_active_season()
     snapshot = snapshot_value(selected_season, "players", athlete_id, "match_history")
     if snapshot is not None:
@@ -292,6 +356,7 @@ def get_player_coug_trace(
     season: str = "2025",
     session_id: Optional[str] = None,
     weight_version: str = "trial_1",
+    _staff: None = Depends(require_staff),
 ):
     """Player-level COUG event ledger with scoring weights and source traceability."""
     if session_id is None:

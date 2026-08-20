@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { staffApiFetch } from './staffApi';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const FALLBACK_SEASON = '2026';
 
 const C = {
@@ -8,12 +8,6 @@ const C = {
   garnet: '#9f182c', gold: '#cfb53b', text: '#f8eee5', muted: '#b89987',
   aset: '#e34b5f', peak: '#e5bf39', set_piece: '#65b5a6', other: '#9d87c7',
 };
-
-async function apiFetch(path) {
-  const response = await fetch(`${API}${path}`);
-  if (!response.ok) throw new Error(`API ${response.status}: ${path}`);
-  return response.json();
-}
 
 function bucketLabel(bucket) {
   return bucket === 'set_piece' ? 'Set Piece' : bucket === 'aset' ? 'ASET' : bucket === 'peak' ? 'PEAK' : 'Other';
@@ -101,8 +95,9 @@ export default function MatchStory() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    apiFetch('/api/seasons')
-      .then(items => {
+    staffApiFetch('/api/seasons')
+      .then(payload => {
+        const items = Array.isArray(payload) ? payload : payload.seasons || [];
         const sorted = [...new Set(items.map(String).filter(Boolean))]
           .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
         const available = sorted.length ? sorted : [FALLBACK_SEASON];
@@ -117,7 +112,7 @@ export default function MatchStory() {
 
   useEffect(() => {
     if (!season) return;
-    apiFetch(`/api/team/matches?season=${season}`)
+    staffApiFetch(`/api/team/matches?season=${season}`)
       .then(items => {
         setMatches(items);
         setSessionId(items[0]?.session_id || '');
@@ -128,7 +123,7 @@ export default function MatchStory() {
 
   useEffect(() => {
     if (!sessionId) return;
-    apiFetch(`/api/match-story/${sessionId}`)
+    staffApiFetch(`/api/match-story/${sessionId}`)
       .then(data => { setStory(data); setLoading(false); })
       .catch(err => { setError(err.message); setLoading(false); });
   }, [sessionId]);

@@ -4,6 +4,8 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { cachedApiFetch } from './apiCache';
+import MatchStory from './MatchStory.jsx';
+import { staffApiFetch, staffLogin, staffLogout, verifyStaffSession } from './staffApi';
 
 const T = {
   garnet: '#800000',
@@ -40,29 +42,41 @@ const UPCOMING_MATCHES_2026 = [
   { id: '2026-10-30_mercer', date: '2026-10-30', opponent: 'Mercer', short: 'Mercer', homeAway: 'A', competition: 'Non-Conference', conference: false, venue: 'Macon' },
 ];
 
-export default function StaffPortal() {
+export default function StaffPortal({ analytics }) {
   return (
     <StaffGate>
-      <StaffDashboard />
+      <StaffDashboard analytics={analytics} />
     </StaffGate>
   );
 }
 
 function StaffGate({ children }) {
-  const passcode = import.meta.env.VITE_STAFF_PASSCODE || 'cofc-staff';
-  const [entered, setEntered] = useState(() => window.localStorage.getItem('cofc_staff_access') === 'true');
+  const [entered, setEntered] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
 
-  function submit(e) {
+  useEffect(() => {
+    verifyStaffSession().then(valid => {
+      setEntered(valid);
+      setChecking(false);
+    });
+  }, []);
+
+  async function submit(e) {
     e.preventDefault();
-    if (value === passcode) {
-      window.localStorage.setItem('cofc_staff_access', 'true');
+    setSubmitting(true);
+    setError('');
+    try {
+      await staffLogin(value);
       setEntered(true);
-      setError('');
-      return;
+      setValue('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
-    setError('Incorrect staff passcode');
   }
 
   if (entered) return children;
@@ -82,19 +96,23 @@ function StaffGate({ children }) {
           style={styles.input}
         />
         {error && <div style={styles.error}>{error}</div>}
-        <button type="submit" style={styles.primaryButton}>Enter Staff Area</button>
+        <button type="submit" style={styles.primaryButton} disabled={checking || submitting}>
+          {checking ? 'Checking session…' : submitting ? 'Signing in…' : 'Enter Staff Area'}
+        </button>
       </form>
       <p style={styles.note}>
-        Local scaffold only. Production deployment should also protect staff API routes server-side.
+        Staff access is validated by the backend. Sessions expire automatically.
       </p>
     </div>
   );
 }
 
-function StaffDashboard() {
-  const [section, setSection] = useState('simulator');
+function StaffDashboard({ analytics }) {
+  const [section, setSection] = useState('analytics');
   const sections = [
+    ['analytics', 'Team Analytics'],
     ['simulator', 'Prediction Simulator'],
+    ['story', 'Match Story'],
     ['scouting', 'Scouting'],
     ['development', 'Player Development'],
     ['recruiting', 'Recruiting'],
@@ -110,7 +128,7 @@ function StaffDashboard() {
         <button
           type="button"
           onClick={() => {
-            window.localStorage.removeItem('cofc_staff_access');
+            staffLogout();
             window.location.reload();
           }}
           style={styles.lockButton}
@@ -136,6 +154,8 @@ function StaffDashboard() {
       </div>
 
       {section === 'simulator' && <PredictionSimulator />}
+      {section === 'analytics' && analytics}
+      {section === 'story' && <MatchStory />}
       {section === 'scouting' && (
         <StaffPlaceholder
           title="Scouting"
@@ -195,11 +215,10 @@ function PlayerDevelopmentTrace() {
 
   useEffect(() => {
     if (!season) return;
-    setLoadingPlayers(true);
-    setError('');
     apiFetch(`/api/coug-leaderboard-with-minutes/${season}`)
       .then(data => {
         setPlayers(data);
+        setLoadingTrace(data.length > 0);
         setSelectedAthleteId(current => current || data[0]?.athlete_id || '');
         setLoadingPlayers(false);
       })
@@ -210,15 +229,10 @@ function PlayerDevelopmentTrace() {
   }, [season]);
 
   useEffect(() => {
-    if (!selectedAthleteId || !season) {
-      setTrace(null);
-      return;
-    }
-    setLoadingTrace(true);
-    setError('');
+    if (!selectedAthleteId || !season) return;
     Promise.all([
-      apiFetch(`/api/player-coug-trace/${selectedAthleteId}?season=${season}`),
-      apiFetch(`/api/player-match-history/${selectedAthleteId}?season=${season}`),
+      staffApiFetch(`/api/player-coug-trace/${selectedAthleteId}?season=${season}`),
+      staffApiFetch(`/api/player-match-history/${selectedAthleteId}?season=${season}`),
     ])
       .then(([traceData, matchData]) => {
         setTrace(traceData);
@@ -252,6 +266,10 @@ function PlayerDevelopmentTrace() {
         </div>
         <div style={styles.traceControls}>
           <select value={season} onChange={e => {
+            setLoadingPlayers(true);
+            setLoadingTrace(false);
+            setError('');
+            setTrace(null);
             setSeason(e.target.value);
             setSelectedAthleteId('');
           }} style={styles.select}>
@@ -259,7 +277,12 @@ function PlayerDevelopmentTrace() {
           </select>
           <select
             value={selectedAthleteId}
-            onChange={e => setSelectedAthleteId(e.target.value)}
+            onChange={e => {
+              setLoadingTrace(true);
+              setError('');
+              setTrace(null);
+              setSelectedAthleteId(e.target.value);
+            }}
             style={styles.select}
             disabled={loadingPlayers || players.length === 0}
           >
