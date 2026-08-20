@@ -51,6 +51,7 @@ async def add_dashboard_cache_headers(request, call_next):
     if request.url.path.startswith((
         "/api/staff/",
         "/api/match-story/",
+        "/api/shot-map/",
         "/api/player-coug-trace/",
         "/api/player-stats",
         "/api/roster/development",
@@ -323,6 +324,15 @@ def get_match_story(
 ):
     """Chronological player-event story for one match session."""
     return db.get_match_story(session_id, weight_version)
+
+
+@app.get("/api/shot-map/{session_id}")
+def get_shot_map(
+    session_id: str,
+    _staff: None = Depends(require_staff),
+):
+    """Reviewed Wyscout shot locations and chance quality for one match."""
+    return db.get_match_shot_map(session_id)
 
 
 @app.get("/api/coug-leaderboard-with-minutes/{season}")

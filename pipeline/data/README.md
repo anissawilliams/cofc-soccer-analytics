@@ -8,6 +8,7 @@ small, intentional repo inputs only.
 - `schedules/*.csv`: season schedules and stable team identifiers
 - `manifests/*.csv`: match/source manifests used by inventory and ingestion
 - `match_flow/*.json`: compact, reviewed two-team pressure snapshots derived from canonical team events
+- `shot_maps/*.json`: compact, reviewed shot locations and chance-quality snapshots
 - `../ingestion/roster_2025.csv`: small parser roster lookup
 
 ## Local Or External
@@ -93,3 +94,35 @@ Reviewed Match Flow snapshots use the paired canonical team stream, never the
 player scoring stream. Publish the compact JSON to `pipeline/data/match_flow`
 or point the backend at an external published directory with
 `COFC_MATCH_FLOW_DIR`.
+
+## Shot Map Intake
+
+The team-event XML identifies shots and their timing but does not contain xG or
+pitch coordinates. Those richer fields come from the Wyscout match report or a
+Wyscout CSV export and must be reviewed before publication.
+
+Use `shot_map_template.csv` for one row per shot. Coordinates are normalized:
+`x=0` is the left touchline, `x=100` the right touchline, `y=0` the shooting
+team's own goal line, and `y=100` the opponent goal line. Allowed outcomes are
+`goal`, `on_goal`, `on_post`, `blocked`, and `wide`. Keep a literal `<0.01` in
+`xg_display` when Wyscout reports a bounded value instead of replacing it with
+an invented exact value. Put the official team totals in `team_xg_total` and
+`team_psxg_total` on at least one row per team when bounded values mean the
+visible shot rows cannot be summed exactly.
+
+After review, publish the compact snapshot:
+
+```bash
+.venv/bin/python pipeline/ingestion/prepare_shot_map.py \
+  --input-csv pipeline/data/shot_map_template.csv \
+  --home-team "Charleston Cougars" \
+  --away-team "Davidson Wildcats" \
+  --source-label "Wyscout Match Report" \
+  --source-file "Charleston Cougars - Davidson Wildcats.pdf" \
+  --output pipeline/data/shot_maps/2026-08-20_davidson.json
+```
+
+Reviewed snapshots are published to `pipeline/data/shot_maps`, or the backend
+can read an external directory configured by `COFC_SHOT_MAP_DIR`. This keeps raw
+PDFs and XML outside Git while allowing the small dashboard-ready snapshot to
+deploy with the application.
