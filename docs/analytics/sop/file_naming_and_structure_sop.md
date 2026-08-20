@@ -1,40 +1,42 @@
-# File Naming & Structure SOP
-**Purpose:**  
-Maintain consistent organization of raw data, processed data, and outputs.
+# Match File Naming and Structure
 
----
+## Canonical Match Slug
 
-## 1. Folder Structure
-Recommended structure:
-analytics/
-data/
-    raw/
-    processed/
-    outputs/
+Use `YYYY-MM-DD_opponent`, for example `2026-08-20_davidson`. Use lowercase,
+underscores, and the scheduled match date.
 
+## Vendor Source Files
 
+Do not rename vendor exports. Wyscout filenames are not a reliable data contract,
+so the intake classifies XML files by their contents. Preserve revised downloads
+as separate files and tell the reviewer which is authoritative.
 
----
+## Drive Layout
 
-## 2. Naming Conventions
-Format:
-`YYYY_MM_DD_opponent_competition_source.ext`
+```text
+SEASON/matches/MATCH_SLUG/
+  00_source/
+    wyscout/
+    spiideo/
+  20_generated/
+```
 
-Examples:
--  
--  
+This is the recommended minimum, not a migration requirement. Existing folders
+are valid if original and generated files remain separate.
 
----
+## Generated Names
 
-## 3. Season Organization
-How to archive by season.
+The intake writes predictable, slug-based names such as:
 
----
+- `<slug>_metadata.json`
+- `<slug>_intake_report.json`
+- `<slug>_validation_report.md`
+- `<slug>_canonical_team_events.csv`
+- `<slug>_match_flow.json`
+- `<slug>_players.csv`
 
-## 4. Versioning Rules
-How to handle updated files.
+Generated files can be recreated. Original source files cannot.
 
----
+## Change Log
 
-## 5. Change Log
-- v0.1 — Scaffold created.
+- v1.0 — Added content-based classification and the minimal Drive layout.

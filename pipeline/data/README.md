@@ -10,6 +10,8 @@ small, intentional repo inputs only.
 - `match_flow/*.json`: compact, reviewed two-team pressure snapshots derived from canonical team events
 - `shot_maps/*.json`: compact, reviewed shot locations and chance-quality snapshots
 - `../ingestion/roster_2025.csv`: small parser roster lookup
+- `../ingestion/roster_2026.csv`: current parser roster lookup
+- `match_metadata_template.json`: student intake metadata example
 
 ## Local Or External
 
@@ -85,6 +87,11 @@ and, when two complementary team XMLs are present, a deduplicated canonical
 team-event CSV under the parsed outputs directory. When one player-coded XML
 and a valid roster are present, it also writes roster-filtered scoring events
 plus the complete raw player/team streams. It never writes to Supabase.
+
+Every source file is fingerprinted in `source_manifest` without being renamed or
+modified. The generated validation status is one of `blocked`, `incomplete`, or
+`ready_for_staff_review`; none of these statuses publishes data. For the guided
+Google Drive workflow, use `pipeline/notebooks/2026_match_intake.ipynb`.
 
 `scoring.ready` must be true before the COUG scoring workflow begins. Paired
 team-event XMLs can power Match Flow but cannot replace the player-coded

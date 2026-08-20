@@ -1,3 +1,5 @@
+import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -10,9 +12,12 @@ sys.path.insert(0, str(INGESTION_DIR))
 from prepare_match_intake import (  # noqa: E402
     build_match_flow_snapshot,
     build_intake_report,
+    build_validation_summary,
     discover_exports,
+    inventory_source_files,
     merge_team_event_pair,
     profile_xml,
+    render_validation_report,
     validate_scoring_candidate,
 )
 
@@ -86,6 +91,47 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertTrue(report["analytics"]["ready"])
         self.assertFalse(report["scoring"]["ready"])
         self.assertEqual(len(events), 2)
+        self.assertEqual(len(report["source_manifest"]), 2)
+        self.assertEqual(
+            {row["relative_path"] for row in report["source_manifest"]},
+            {"whatever-one.xml", "another export.xml"},
+        )
+
+    def test_source_inventory_fingerprints_vendor_files_without_renaming(self):
+        pdf = self.root / "Wyscout report (final).pdf"
+        pdf.write_bytes(b"sample report")
+
+        manifest = inventory_source_files(self.root)
+        item = next(row for row in manifest if row["relative_path"] == pdf.name)
+
+        self.assertEqual(item["extension"], ".pdf")
+        self.assertEqual(item["size_bytes"], 13)
+        self.assertEqual(len(item["sha256"]), 64)
+
+    def test_invalid_xml_is_reported_instead_of_crashing_intake(self):
+        broken = self.root / "broken export.xml"
+        broken.write_text("<not-closed>", encoding="utf-8")
+
+        profile = profile_xml(broken)
+        report, _ = build_intake_report(self.root, "2026-08-20_opponent")
+        report["scoring"] = {"ready": False, "reason": "missing scoring export"}
+        report["validation"] = build_validation_summary(report)
+
+        self.assertEqual(profile.kind, "invalid_xml")
+        self.assertTrue(profile.error)
+        self.assertEqual(report["validation"]["status"], "blocked")
+        self.assertIn("could not be read", report["validation"]["blocking_issues"][0])
+
+    def test_validation_report_makes_staff_review_boundary_explicit(self):
+        report, _ = build_intake_report(self.root, "2026-08-20_opponent")
+        report["scoring"] = {"ready": False, "reason": "missing scoring export"}
+        report["validation"] = build_validation_summary(report)
+
+        rendered = render_validation_report(report)
+
+        self.assertIn("ready_for_staff_review", rendered)
+        self.assertIn("has not been published", rendered)
+        self.assertIn("SHA-256", rendered)
 
     def test_scoring_candidate_is_roster_validated_before_ready(self):
         scoring_xml = """<root><instances>
@@ -103,6 +149,36 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(status["scoring_events"], 1)
         self.assertEqual(status["all_player_events"], 2)
         self.assertEqual([event["name"] for event in parsed["player_events"]], ["J. Jordheim"])
+
+    def test_cli_creates_review_bundle_without_publishing(self):
+        output_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(output_temp.cleanup)
+        output_dir = Path(output_temp.name)
+        metadata = self.root / "metadata.json"
+        metadata.write_text(json.dumps({"opponent": "Opponent FC"}), encoding="utf-8")
+        roster = self.root / "roster.csv"
+        roster.write_text("number,name\n3,J. Jordheim\n", encoding="utf-8")
+        script = INGESTION_DIR / "prepare_match_intake.py"
+
+        subprocess.run([
+            sys.executable,
+            str(script),
+            "--input-dir", str(self.root),
+            "--output-dir", str(output_dir),
+            "--season", "2026",
+            "--slug", "2026-08-20_opponent",
+            "--roster", str(roster),
+            "--metadata", str(metadata),
+        ], check=True, capture_output=True, text=True)
+
+        saved = json.loads(
+            (output_dir / "2026-08-20_opponent_intake_report.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(saved["validation"]["status"], "ready_for_staff_review")
+        self.assertFalse(saved["validation"]["published"])
+        self.assertEqual(saved["metadata"]["opponent"], "Opponent FC")
+        self.assertTrue((output_dir / "2026-08-20_opponent_validation_report.md").exists())
+        self.assertTrue((output_dir / "2026-08-20_opponent_match_flow.json").exists())
 
 
 if __name__ == "__main__":

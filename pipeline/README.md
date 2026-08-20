@@ -38,6 +38,13 @@ pipeline/
 
 ## Lane 1 — COUG Table
 
+### 2026 undergraduate match intake
+
+Use `pipeline/notebooks/2026_match_intake.ipynb` for the supported Google Drive
+and Colab workflow. It inventories untouched vendor files, classifies XML by
+content, prepares a review bundle, and stops before publication. See the
+[post-match workflow](../docs/analytics/sop/workflow_sop.md).
+
 ### Preflight check — run before publishing to coaches
 ```bash
 .venv/bin/python pipeline/analytics/preflight_check.py --season 2025
