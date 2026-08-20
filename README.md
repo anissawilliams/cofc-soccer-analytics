@@ -29,6 +29,7 @@ Then fill in `.env` if you need Supabase-backed commands:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
+- `COFC_STAFF_PASSCODE` for the private staff dashboard and API routes
 - `STREAMLIT_PASSWORD` if running Streamlit
 
 Most local file paths are resolved from the repo root. Optional path overrides
@@ -79,6 +80,17 @@ first, then falls back to Supabase if they are absent. Set
 persistent deployment volume. `load_season_scores.py` refreshes the affected
 season automatically after successful writes; use `--no-refresh-read-model`
 only for maintenance or backfill workflows that intentionally defer publishing.
+
+## Dashboard Access Boundary
+
+The COUG tables, match scores, season results, and their published player score
+history are public display views. Tactical analytics, Match Story event detail,
+player-development evidence, and scoring traces require staff sign-in.
+
+Staff access uses `COFC_STAFF_PASSCODE` on the backend. The frontend exchanges
+the passcode for a signed, short-lived bearer token stored only for the browser
+tab session. Do not set or expose `VITE_STAFF_PASSCODE`; production deployments
+must add `COFC_STAFF_PASSCODE` to the Render backend environment.
 
 ## Important Docs
 

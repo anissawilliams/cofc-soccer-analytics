@@ -3,8 +3,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Cell,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart
 } from 'recharts';
+import { staffApiFetch } from './staffApi';
 const CougTable = lazy(() => import('./CougTable.jsx'));
-const MatchStory = lazy(() => import('./MatchStory.jsx'));
 const StaffPortal = lazy(() => import('./StaffPortal.jsx'));
 
 const slideDownStyle = `
@@ -62,8 +62,6 @@ function PendingCard({ title, message }) {
 // ── Tab Nav ───────────────────────────────────────────────────────────────────
 function TabNav({ active, onChange }) {
   const tabs = [
-    { id: 'analytics', label: 'Team Analytics' },
-    { id: 'story',     label: 'Match Story' },
     { id: 'coug',      label: 'COUG Table' },
     { id: 'coug2',     label: 'COUG Table v2' },
     { id: 'staff',     label: 'Staff' },
@@ -114,23 +112,18 @@ function AnalyticsDashboard() {
   const [pressingData, setPressingData]       = useState([]);
   const [shotsData, setShotsData]             = useState([]);
   const [shotsAvailable, setShotsAvailable]   = useState(false);
-  const [rosterData, setRosterData]           = useState([]);
   const [formationData, setFormationData]     = useState([]);
   const [formationsAvailable, setFormationsAvailable] = useState(false);
   const [selectedPlayer, setSelectedPlayer]   = useState('All');
   const [loading, setLoading]                 = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
   useEffect(() => {
-    setLoading(true);
     Promise.all([
-      fetch(`${API_URL}/api/leaders/recoveries`).then(r => r.json()).catch(() => []),
-      fetch(`${API_URL}/api/team/shots-by-time`).then(r => r.json()).catch(() => ({ available: false, labels: [], data: [] })),
-      fetch(`${API_URL}/api/roster/development`).then(r => r.json()).catch(() => []),
-      fetch(`${API_URL}/api/team/formations`).then(r => r.json()).catch(() => ({ available: false, data: [] })),
+      staffApiFetch('/api/leaders/recoveries').catch(() => []),
+      staffApiFetch('/api/team/shots-by-time').catch(() => ({ available: false, labels: [], data: [] })),
+      staffApiFetch('/api/team/formations').catch(() => ({ available: false, data: [] })),
     ])
-    .then(([recoveriesRes, shotsRes, developmentRes, formationRes]) => {
+    .then(([recoveriesRes, shotsRes, formationRes]) => {
       if (Array.isArray(recoveriesRes) && recoveriesRes.length > 0) {
         setPressingData(recoveriesRes.map(p => ({
           name:            p.name.split(' ').pop(),
@@ -146,7 +139,6 @@ function AnalyticsDashboard() {
           setShotsData(shotsRes.labels.map((label, i) => ({ time: label, Shots: shotsRes.data[i] ?? 0 })));
         }
       }
-      if (Array.isArray(developmentRes)) setRosterData(developmentRes);
       if (formationRes.available !== false && Array.isArray(formationRes.data) && formationRes.data.length > 0) {
         setFormationsAvailable(true);
         setFormationData(formationRes.data);
@@ -157,7 +149,7 @@ function AnalyticsDashboard() {
       setLoading(false);
     })
     .catch(() => setLoading(false));
-  }, [API_URL]);
+  }, []);
 
   const displayData = selectedPlayer === 'All'
     ? pressingData.slice(0, 12)
@@ -261,53 +253,6 @@ function AnalyticsDashboard() {
         )}
       </div>
 
-      {/* ROSTER TABLE */}
-      <div style={{ backgroundColor: colors.cardBg, padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
-        <h3 style={{ color: colors.garnet, marginTop: 0, marginBottom: '1.5rem' }}>Full Roster Development Tracker</h3>
-        {rosterData.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '2px solid #eee' }}>
-                  <th style={{ padding: '12px' }}>Player</th>
-                  <th>Position</th><th>Metric</th><th>Current</th><th>Target</th><th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rosterData.map((player, idx) => {
-                  const isPending = player.Status === 'Pending Data';
-                  return (
-                    <tr key={idx} style={{ borderBottom: '1px solid #f9fafb' }}>
-                      <td style={{ padding: '12px', fontWeight: 'bold' }}>{player.name}</td>
-                      <td>{player.position}</td>
-                      <td style={{ fontSize: '14px', color: '#666' }}>{player.Metric}</td>
-                      <td style={{ color: isPending ? colors.pendingText : 'inherit' }}>
-                        {player.Value !== null && player.Value !== undefined ? player.Value : '—'}
-                      </td>
-                      <td>{player.Goal}</td>
-                      <td>
-                        <span style={{
-                          padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold',
-                          backgroundColor: isPending ? colors.pending : player.Status === 'On Target' ? colors.goldLight : colors.pink,
-                          color: isPending ? colors.pendingText : player.Status === 'On Target' ? colors.goldText : colors.pinkText,
-                        }}>
-                          {player.Status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: '2rem', textAlign: 'center', color: colors.pendingText }}>
-            <span style={{ fontSize: 24 }}>⏳</span>
-            <p style={{ margin: '0.5rem 0 0' }}>Roster data loading from Supabase...</p>
-          </div>
-        )}
-      </div>
-
       {/* GLOSSARY */}
       <div style={{ backgroundColor: colors.cardBg, padding: '1.5rem', borderRadius: '12px', borderTop: `4px solid ${colors.gold}` }}>
         <h3 style={{ color: colors.garnet, marginTop: 0 }}>Analytics Legend</h3>
@@ -328,7 +273,7 @@ import COUGDashboardLegacy from './coug_dashboard.jsx';
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState('coug2');
-  const darkSurface = tab === 'coug2' || tab === 'story';
+  const darkSurface = tab === 'coug2';
 
   return (
     <div style={{ backgroundColor: darkSurface ? '#0a0806' : colors.background, minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -339,12 +284,6 @@ export default function App() {
         </h2>
         <TabNav active={tab} onChange={setTab} />
       </div>
-      {tab === 'analytics' && <AnalyticsDashboard />}
-      {tab === 'story' && (
-        <Suspense fallback={<SectionLoader label="Loading Match Story..." />}>
-          <MatchStory />
-        </Suspense>
-      )}
       {tab === 'coug'      && <div style={{ padding: '2rem' }}><COUGDashboardLegacy /></div>}
       {tab === 'coug2' && (
         <Suspense fallback={<SectionLoader label="Loading COUG Table..." />}>
@@ -353,7 +292,7 @@ export default function App() {
       )}
       {tab === 'staff' && (
         <Suspense fallback={<SectionLoader label="Loading Staff Portal..." />}>
-          <StaffPortal />
+          <StaffPortal analytics={<AnalyticsDashboard />} />
         </Suspense>
       )}
     </div>
