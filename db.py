@@ -788,7 +788,17 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
     empty = {
         "session_id": session_id,
         "match": None,
-        "summary": {"events": 0, "players": 0, "aset": 0, "peak": 0, "set_piece": 0, "total": 0},
+        "summary": {
+            "events": 0,
+            "players": 0,
+            "aset": 0,
+            "peak": 0,
+            "set_piece": 0,
+            "total": 0,
+            "published_peak": 0,
+            "untimed_peak": 0,
+            "peak_coverage_ratio": None,
+        },
         "events": [],
     }
     try:
@@ -898,6 +908,30 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
             event.get("match_minute") if event.get("match_minute") is not None else 9999,
             event.get("player") or "",
         ))
+
+        published_peak = 0.0
+        try:
+            score_rows = (
+                client.table("coug_score")
+                .select("peak_score, score_type, scoring_version:scoring_version_id(version)")
+                .eq("session_id", session_id)
+                .execute()
+                .data
+                or []
+            )
+            published_peak = round(sum(
+                float(row.get("peak_score") or 0)
+                for row in score_rows
+                if row.get("score_type") == "match"
+                and (row.get("scoring_version") or {}).get("version") == weight_version
+            ), 4)
+        except Exception as exc:
+            # Coverage is supplemental. A missing score rollup must not hide the
+            # source-traceable event story during a rolling deployment.
+            print(f"[db] get_match_story peak coverage error: {exc}")
+
+        peak_coverage = _match_story_peak_coverage(totals["peak"], published_peak)
+
         return {
             "session_id": session_id,
             "match": {
@@ -912,7 +946,12 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
                 "goals_for": match_row.get("goals_for"),
                 "goals_against": match_row.get("goals_against"),
             },
-            "summary": {"events": len(events), "players": len(player_ids), **totals},
+            "summary": {
+                "events": len(events),
+                "players": len(player_ids),
+                **totals,
+                **peak_coverage,
+            },
             "events": events,
         }
     except Exception as exc:
@@ -929,6 +968,19 @@ def _score_bucket(category_code: str | None) -> str:
         "LOAD": "load",
         "TEAM": "team",
     }.get(category_code or "", "team")
+
+
+def _match_story_peak_coverage(timed_peak: float, published_peak: float) -> dict:
+    """Compare timestamped PEAK evidence with the published match rollup."""
+    timed = round(float(timed_peak or 0), 4)
+    published = round(float(published_peak or 0), 4)
+    difference = round(published - timed, 4)
+    ratio = None if published <= 0 else round(min(timed / published, 1.0), 4)
+    return {
+        "published_peak": published,
+        "untimed_peak": max(difference, 0),
+        "peak_coverage_ratio": ratio,
+    }
 
 
 def _format_player(player: dict | None) -> dict | None:

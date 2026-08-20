@@ -26,6 +26,158 @@ function score(value) {
   return Number(value || 0).toFixed(2);
 }
 
+function isAttackingEvent(event) {
+  if (event.score_bucket === 'peak' || event.score_bucket === 'positional') return true;
+  return /goal|assist|shot|opportun|key pass|smart pass/i.test(event.metric_name || '');
+}
+
+function buildPulseBins(events, endMinute) {
+  const binCount = Math.max(18, Math.ceil(endMinute / 5));
+  const bins = Array.from({ length: binCount }, (_, index) => ({
+    start: index * 5,
+    attack: 0,
+    defense: 0,
+    events: [],
+  }));
+
+  events.forEach(event => {
+    const minute = Number(event.match_minute);
+    if (!Number.isFinite(minute) || minute < 0) return;
+    const index = Math.min(bins.length - 1, Math.floor(minute / 5));
+    const contribution = Math.abs(Number(event.contribution));
+    if (!Number.isFinite(contribution)) return;
+    bins[index].events.push(event);
+    if (isAttackingEvent(event)) bins[index].attack += contribution;
+    if (event.score_bucket === 'aset') bins[index].defense += contribution;
+  });
+
+  return bins;
+}
+
+function strongestPulseWindow(events) {
+  const endMinute = Math.max(90, Math.ceil(Math.max(90, ...events.map(event => Number(event.match_minute || 90))) / 5) * 5);
+  return buildPulseBins(events, endMinute).reduce(
+    (strongest, item) => item.attack + item.defense > strongest.attack + strongest.defense ? item : strongest,
+    { start: 0, attack: 0, defense: 0 },
+  ).start;
+}
+
+function MatchPulse({ events, endMinute, selectedWindow, onSelectWindow }) {
+  const bins = useMemo(() => buildPulseBins(events, endMinute), [events, endMinute]);
+  const width = 960;
+  const height = 286;
+  const pad = { left: 50, right: 16, top: 32, bottom: 34 };
+  const middle = 142;
+  const halfHeight = 92;
+  const plotWidth = width - pad.left - pad.right;
+  const binWidth = plotWidth / bins.length;
+  const pulseMax = Math.max(1, ...bins.flatMap(item => [item.attack, item.defense]));
+  const selected = bins.find(item => item.start === selectedWindow) || bins[0];
+  const selectedEvents = [...(selected?.events || [])]
+    .sort((a, b) => Math.abs(Number(b.contribution || 0)) - Math.abs(Number(a.contribution || 0)))
+    .slice(0, 3);
+  const goalEvents = events.filter(event => /goal \(scorer\)/i.test(event.metric_name || ''));
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap' }}>
+        <div>
+          <h2 style={{ fontSize: 17, margin: 0 }}>Match Flow</h2>
+          <p style={{ color: C.muted, fontSize: 11, margin: '5px 0 0' }}>
+            Five-minute COUG-weighted windows · shared scale · attacking actions above · defensive actions below
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 14, color: C.muted, fontSize: 11 }}>
+          <span><i style={{ display: 'inline-block', width: 9, height: 9, background: C.gold, marginRight: 5 }} />Attack</span>
+          <span><i style={{ display: 'inline-block', width: 9, height: 9, background: C.aset, marginRight: 5 }} />Defense</span>
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="COFC attacking and defensive contribution by five-minute window" style={{ width: '100%', display: 'block', background: '#120a09', border: `1px solid ${C.border}` }}>
+        <text x={pad.left} y={18} fill={C.gold} fontSize="10" fontWeight="800" letterSpacing="1.2">ATTACKING CONTRIBUTION</text>
+        <text x={pad.left} y={height - 8} fill={C.aset} fontSize="10" fontWeight="800" letterSpacing="1.2">DEFENSIVE CONTRIBUTION</text>
+        {[0, 15, 30, 45, 60, 75, 90].filter(minute => minute <= endMinute).map(minute => {
+          const x = pad.left + (minute / endMinute) * plotWidth;
+          return <g key={minute}>
+            <line x1={x} x2={x} y1={pad.top} y2={height - pad.bottom} stroke={C.border} strokeWidth="1" opacity="0.55" />
+            <text x={x} y={middle + 4} textAnchor="middle" fill={C.muted} fontSize="10">{minute}</text>
+          </g>;
+        })}
+        <line x1={pad.left} x2={width - pad.right} y1={middle} y2={middle} stroke="#7f665b" strokeWidth="1" />
+
+        {bins.map((item, index) => {
+          const x = pad.left + index * binWidth + 1;
+          const barWidth = Math.max(3, binWidth - 3);
+          const attackHeight = (item.attack / pulseMax) * halfHeight;
+          const defenseHeight = (item.defense / pulseMax) * halfHeight;
+          const isSelected = item.start === selected?.start;
+          const label = `${item.start} to ${item.start + 5} minutes: attack ${score(item.attack)}, defense ${score(item.defense)}`;
+          return <g key={item.start} onClick={() => onSelectWindow(item.start)} onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') onSelectWindow(item.start);
+          }} role="button" tabIndex="0" aria-label={label} style={{ cursor: 'pointer', opacity: isSelected ? 1 : 0.72 }}>
+            <title>{label}</title>
+            {isSelected && <rect x={x - 2} y={pad.top} width={barWidth + 4} height={height - pad.top - pad.bottom} fill={C.gold} opacity="0.07" />}
+            <rect x={x} y={middle - attackHeight} width={barWidth} height={attackHeight} fill={C.gold} rx="1" />
+            <rect x={x} y={middle + 1} width={barWidth} height={defenseHeight} fill={C.aset} rx="1" />
+          </g>;
+        })}
+
+        {goalEvents.map(event => {
+          const x = pad.left + (Math.min(endMinute, Number(event.match_minute || 0)) / endMinute) * plotWidth;
+          return <g key={event.event_id}>
+            <line x1={x} x2={x} y1={pad.top} y2={height - pad.bottom} stroke={C.text} strokeDasharray="3 4" opacity="0.45" />
+            <circle cx={x} cy={middle - 7} r="4" fill={C.text} />
+            <text x={x + 5} y={pad.top - 6} fill={C.text} fontSize="9">{minuteLabel(event.match_minute)} GOAL</text>
+          </g>;
+        })}
+      </svg>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr) auto', gap: 14, alignItems: 'center', padding: '12px 4px 0', borderTop: `1px solid ${C.border}`, marginTop: 10 }}>
+        <div style={{ color: C.gold, fontSize: 20, fontWeight: 900 }}>
+          {selected?.start ?? 0}′–{(selected?.start ?? 0) + 5}′
+          <div style={{ color: C.muted, fontSize: 9, letterSpacing: 1.2 }}>SELECTED WINDOW</div>
+        </div>
+        <div style={{ color: C.text, fontSize: 12, lineHeight: 1.5 }}>
+          {selectedEvents.length
+            ? selectedEvents.map(event => `${minuteLabel(event.match_minute)} ${event.player}: ${event.metric_name}`).join(' · ')
+            : 'No weighted COUG events in this window.'}
+        </div>
+        <div style={{ textAlign: 'right', color: C.muted, fontSize: 11 }}>
+          <strong style={{ display: 'block', color: C.text, fontSize: 14 }}>
+            {selected?.attack >= selected?.defense ? 'Attacking surge' : 'Defensive work'}
+          </strong>
+          {score(selected?.attack)} attack · {score(selected?.defense)} defense
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PeakCoverage({ summary }) {
+  const timed = Number(summary?.peak || 0);
+  const published = Number(summary?.published_peak || 0);
+  const untimed = Number(summary?.untimed_peak || 0);
+  const ratio = published > 0 ? Math.min(timed / published, 1) : 0;
+
+  return (
+    <div style={{ border: `1px solid ${C.border}`, background: C.surface2, padding: '12px 14px', marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 12 }}>PEAK evidence coverage</strong>
+        <span style={{ color: C.muted, fontSize: 11 }}>
+          Timed <b style={{ color: C.gold }}>{score(timed)}</b> / Published <b style={{ color: C.text }}>{score(published)}</b>
+          {untimed > 0 && <> · <b style={{ color: C.other }}>{score(untimed)} untimed legacy PEAK</b></>}
+        </span>
+      </div>
+      <div style={{ height: 5, background: C.bg, marginTop: 9 }}>
+        <div style={{ width: `${ratio * 100}%`, height: '100%', background: C.gold }} />
+      </div>
+      <div style={{ color: C.muted, fontSize: 10, marginTop: 7 }}>
+        Untimed legacy points remain in the published COUG score but are not placed at an invented match minute.
+      </div>
+    </div>
+  );
+}
+
 function TimelineHalf({ half, events, selectedId, onSelect, endMinute }) {
   const start = half === 1 ? 0 : 45;
   const end = half === 1 ? 45 : endMinute;
@@ -91,6 +243,7 @@ export default function MatchStory() {
   const [bucket, setBucket] = useState('all');
   const [player, setPlayer] = useState('all');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedWindow, setSelectedWindow] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -124,7 +277,11 @@ export default function MatchStory() {
   useEffect(() => {
     if (!sessionId) return;
     staffApiFetch(`/api/match-story/${sessionId}`)
-      .then(data => { setStory(data); setLoading(false); })
+      .then(data => {
+        setStory(data);
+        setSelectedWindow(strongestPulseWindow(data.events || []));
+        setLoading(false);
+      })
       .catch(err => { setError(err.message); setLoading(false); });
   }, [sessionId]);
 
@@ -136,6 +293,7 @@ export default function MatchStory() {
   const firstHalf = filtered.filter(event => Number(event.match_minute ?? 0) < 45);
   const secondHalf = filtered.filter(event => Number(event.match_minute ?? 0) >= 45);
   const timelineEnd = Math.max(90, Math.ceil(Math.max(90, ...secondHalf.map(event => Number(event.match_minute || 90))) / 5) * 5);
+  const pulseEnd = Math.max(90, Math.ceil(Math.max(90, ...(story?.events || []).map(event => Number(event.match_minute || 90))) / 5) * 5);
   const match = story?.match;
 
   const control = { background: C.surface2, border: `1px solid ${C.border}`, color: C.text, padding: '8px 10px', borderRadius: 4 };
@@ -155,6 +313,7 @@ export default function MatchStory() {
               setError('');
               setStory(null);
               setSelectedEvent(null);
+              setSelectedWindow(0);
               setSeason(e.target.value);
             }} style={control}>
               {seasons.map(item => <option key={item} value={item}>{item} Season</option>)}
@@ -163,6 +322,7 @@ export default function MatchStory() {
               setLoading(true);
               setError('');
               setSelectedEvent(null);
+              setSelectedWindow(0);
               setSessionId(e.target.value);
             }} style={{ ...control, minWidth: 230 }}>
               {!matches.length && <option value="">No matches available</option>}
@@ -192,6 +352,15 @@ export default function MatchStory() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 14 }}>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, padding: 20, minWidth: 0 }}>
+            {story?.summary && <PeakCoverage summary={story.summary} />}
+            {!!story?.events?.length && (
+              <MatchPulse
+                events={story.events}
+                endMinute={pulseEnd}
+                selectedWindow={selectedWindow}
+                onSelectWindow={setSelectedWindow}
+              />
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                 {['all', 'aset', 'peak', 'set_piece', 'other'].map(item => (
