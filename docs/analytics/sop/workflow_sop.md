@@ -26,11 +26,16 @@ underscores between words. A minimal Drive layout is:
   00_source/
     wyscout/
     spiideo/       # optional until a real export is available
+  05_source_archive/  # older corrected/replaced downloads
   20_generated/
 ```
 
 Existing Drive folders may be used. The only hard rule is that generated files
 must not be written inside the source folder.
+
+Give student analysts the copyable
+[`MATCH_INTAKE_README.md`](../../../pipeline/data/MATCH_INTAKE_README.md) for the
+complete extension and download checklist.
 
 ## 2. Preserve the Original Exports
 

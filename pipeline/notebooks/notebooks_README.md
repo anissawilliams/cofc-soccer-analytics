@@ -14,6 +14,8 @@ It cannot publish to Supabase.
 5. Send the validation report to the staff reviewer.
 
 See `docs/analytics/sop/workflow_sop.md` for the complete handoff.
+The student download and file-extension checklist is in
+[`../data/MATCH_INTAKE_README.md`](../data/MATCH_INTAKE_README.md).
 
 ## Legacy and exploratory notebooks
 

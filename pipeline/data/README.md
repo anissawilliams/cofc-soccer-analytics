@@ -3,6 +3,9 @@
 This folder is the default local data mount for the pipeline. It should contain
 small, intentional repo inputs only.
 
+For the student-facing Google Drive folder structure and exact file-extension
+checklist, see [`MATCH_INTAKE_README.md`](MATCH_INTAKE_README.md).
+
 ## Versioned In Git
 
 - `schedules/*.csv`: season schedules and stable team identifiers
