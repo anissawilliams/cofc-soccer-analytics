@@ -6,7 +6,7 @@ const FALLBACK_SEASON = '2026';
 const C = {
   bg: '#120907', surface: '#1d0d0c', surface2: '#291210', border: '#4a2722',
   garnet: '#9f182c', gold: '#cfb53b', text: '#f8eee5', muted: '#b89987',
-  aset: '#e34b5f', peak: '#e5bf39', set_piece: '#65b5a6', other: '#9d87c7',
+  aset: '#e34b5f', peak: '#e5bf39', set_piece: '#65b5a6', other: '#9d87c7', opponent: '#65aebc',
 };
 
 function bucketLabel(bucket) {
@@ -60,6 +60,111 @@ function strongestPulseWindow(events) {
     (strongest, item) => item.attack + item.defense > strongest.attack + strongest.defense ? item : strongest,
     { start: 0, attack: 0, defense: 0 },
   ).start;
+}
+
+function strongestFlowWindow(flow, events) {
+  if (!flow?.available || !flow.bins?.length) return strongestPulseWindow(events);
+  return flow.bins.reduce(
+    (strongest, item) => Number(item.home || 0) + Number(item.away || 0) > Number(strongest.home || 0) + Number(strongest.away || 0) ? item : strongest,
+    flow.bins[0],
+  ).start;
+}
+
+function OptaMatchFlow({ flow, selectedWindow, onSelectWindow }) {
+  const bins = flow.bins || [];
+  const width = 960;
+  const height = 286;
+  const pad = { left: 50, right: 16, top: 32, bottom: 34 };
+  const middle = 142;
+  const halfHeight = 92;
+  const endMinute = Math.max(90, ...bins.map(item => Number(item.start || 0) + Number(flow.window_minutes || 5)));
+  const plotWidth = width - pad.left - pad.right;
+  const binWidth = bins.length ? plotWidth / bins.length : plotWidth;
+  const pressureMax = Math.max(1, ...bins.flatMap(item => [Number(item.home || 0), Number(item.away || 0)]));
+  const selected = bins.find(item => Number(item.start) === Number(selectedWindow)) || bins[0];
+  const windowMinutes = Number(flow.window_minutes || 5);
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap' }}>
+        <div>
+          <h2 style={{ fontSize: 17, margin: 0 }}>Match Flow</h2>
+          <p style={{ color: C.muted, fontSize: 11, margin: '5px 0 0' }}>
+            Five-minute event-pressure windows from the paired canonical team stream
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 14, color: C.muted, fontSize: 11 }}>
+          <span><i style={{ display: 'inline-block', width: 9, height: 9, background: C.gold, marginRight: 5 }} />{flow.home_team}</span>
+          <span><i style={{ display: 'inline-block', width: 9, height: 9, background: C.opponent, marginRight: 5 }} />{flow.away_team}</span>
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${flow.home_team} and ${flow.away_team} match pressure by five-minute window`} style={{ width: '100%', display: 'block', background: '#120a09', border: `1px solid ${C.border}` }}>
+        <text x={pad.left} y={18} fill={C.gold} fontSize="10" fontWeight="800" letterSpacing="1.2">{flow.home_team.toUpperCase()} PRESSURE</text>
+        <text x={pad.left} y={height - 8} fill={C.opponent} fontSize="10" fontWeight="800" letterSpacing="1.2">{flow.away_team.toUpperCase()} PRESSURE</text>
+        {[0, 15, 30, 45, 60, 75, 90].filter(minute => minute <= endMinute).map(minute => {
+          const x = pad.left + (minute / endMinute) * plotWidth;
+          return <g key={minute}>
+            <line x1={x} x2={x} y1={pad.top} y2={height - pad.bottom} stroke={C.border} strokeWidth="1" opacity="0.55" />
+            <text x={x} y={middle + 4} textAnchor="middle" fill={C.muted} fontSize="10">{minute}</text>
+          </g>;
+        })}
+        <line x1={pad.left} x2={width - pad.right} y1={middle} y2={middle} stroke="#7f665b" strokeWidth="1" />
+
+        {bins.map((item, index) => {
+          const x = pad.left + index * binWidth + 1;
+          const barWidth = Math.max(3, binWidth - 3);
+          const homeHeight = (Number(item.home || 0) / pressureMax) * halfHeight;
+          const awayHeight = (Number(item.away || 0) / pressureMax) * halfHeight;
+          const isSelected = Number(item.start) === Number(selected?.start);
+          const label = `${item.start} to ${Number(item.start) + windowMinutes} minutes: ${flow.home_team} ${score(item.home)}, ${flow.away_team} ${score(item.away)}`;
+          return <g key={item.start} onClick={() => onSelectWindow(Number(item.start))} onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') onSelectWindow(Number(item.start));
+          }} role="button" tabIndex="0" aria-label={label} style={{ cursor: 'pointer', opacity: isSelected ? 1 : 0.72 }}>
+            <title>{label}</title>
+            {isSelected && <rect x={x - 2} y={pad.top} width={barWidth + 4} height={height - pad.top - pad.bottom} fill={C.gold} opacity="0.07" />}
+            <rect x={x} y={middle - homeHeight} width={barWidth} height={homeHeight} fill={C.gold} rx="1" />
+            <rect x={x} y={middle + 1} width={barWidth} height={awayHeight} fill={C.opponent} rx="1" />
+          </g>;
+        })}
+
+        {(flow.goals || []).map((goal, index) => {
+          const x = pad.left + (Math.min(endMinute, Number(goal.minute || 0)) / endMinute) * plotWidth;
+          const isHome = goal.team === flow.home_team;
+          return <g key={`${goal.minute}-${index}`}>
+            <line x1={x} x2={x} y1={pad.top} y2={height - pad.bottom} stroke={C.text} strokeDasharray="3 4" opacity="0.45" />
+            <circle cx={x} cy={isHome ? middle - 7 : middle + 7} r="4" fill={C.text} />
+            <text x={x + (Number(goal.minute) > 90 ? -5 : 5)} y={isHome ? pad.top - 6 : height - pad.bottom + 16} textAnchor={Number(goal.minute) > 90 ? 'end' : 'start'} fill={C.text} fontSize="9">
+              {minuteLabel(goal.minute)} GOAL
+            </text>
+          </g>;
+        })}
+      </svg>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr) auto', gap: 14, alignItems: 'center', padding: '12px 4px 0', borderTop: `1px solid ${C.border}`, marginTop: 10 }}>
+        <div style={{ color: C.gold, fontSize: 20, fontWeight: 900 }}>
+          {selected?.start ?? 0}′–{Number(selected?.start ?? 0) + windowMinutes}′
+          <div style={{ color: C.muted, fontSize: 9, letterSpacing: 1.2 }}>SELECTED WINDOW</div>
+        </div>
+        <div style={{ color: C.text, fontSize: 12, lineHeight: 1.5 }}>{selected?.note || 'No canonical team events in this window.'}</div>
+        <div style={{ textAlign: 'right', color: C.muted, fontSize: 11 }}>
+          <strong style={{ display: 'block', color: C.text, fontSize: 14 }}>
+            {Number(selected?.home || 0) > Number(selected?.away || 0)
+              ? `${flow.home_team} surge`
+              : Number(selected?.away || 0) > Number(selected?.home || 0)
+                ? `${flow.away_team} surge`
+                : 'Balanced window'}
+          </strong>
+          {score(selected?.home)} vs {score(selected?.away)}
+        </div>
+      </div>
+      <div style={{ color: C.muted, fontSize: 10, marginTop: 9, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <span>{flow.coverage?.canonical_events ?? 0} canonical events</span>
+        <span>{flow.coverage?.mirrored_events ?? 0} mirrored confirmations</span>
+        <span>{flow.coverage?.unmapped_labels ?? 0} unmapped labels</span>
+      </div>
+    </div>
+  );
 }
 
 function MatchPulse({ events, endMinute, selectedWindow, onSelectWindow }) {
@@ -279,7 +384,7 @@ export default function MatchStory() {
     staffApiFetch(`/api/match-story/${sessionId}`)
       .then(data => {
         setStory(data);
-        setSelectedWindow(strongestPulseWindow(data.events || []));
+        setSelectedWindow(strongestFlowWindow(data.flow, data.events || []));
         setLoading(false);
       })
       .catch(err => { setError(err.message); setLoading(false); });
@@ -353,7 +458,13 @@ export default function MatchStory() {
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 14 }}>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, padding: 20, minWidth: 0 }}>
             {story?.summary && <PeakCoverage summary={story.summary} />}
-            {!!story?.events?.length && (
+            {story?.flow?.available ? (
+              <OptaMatchFlow
+                flow={story.flow}
+                selectedWindow={selectedWindow}
+                onSelectWindow={setSelectedWindow}
+              />
+            ) : !!story?.events?.length && (
               <MatchPulse
                 events={story.events}
                 endMinute={pulseEnd}

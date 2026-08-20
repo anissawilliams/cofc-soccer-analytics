@@ -7,6 +7,7 @@ small, intentional repo inputs only.
 
 - `schedules/*.csv`: season schedules and stable team identifiers
 - `manifests/*.csv`: match/source manifests used by inventory and ingestion
+- `match_flow/*.json`: compact, reviewed two-team pressure snapshots derived from canonical team events
 - `../ingestion/roster_2025.csv`: small parser roster lookup
 
 ## Local Or External
@@ -87,3 +88,8 @@ plus the complete raw player/team streams. It never writes to Supabase.
 `scoring.ready` must be true before the COUG scoring workflow begins. Paired
 team-event XMLs can power Match Flow but cannot replace the player-coded
 Sportscode XML required for player scoring.
+
+Reviewed Match Flow snapshots use the paired canonical team stream, never the
+player scoring stream. Publish the compact JSON to `pipeline/data/match_flow`
+or point the backend at an external published directory with
+`COFC_MATCH_FLOW_DIR`.
