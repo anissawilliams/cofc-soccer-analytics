@@ -17,6 +17,16 @@ class ShotMapTests(unittest.TestCase):
         self.assertEqual(result["team_summaries"]["Charleston Cougars"]["xg"], 1.09)
         self.assertEqual(result["coverage"]["located_shots"], 17)
 
+    def test_supabase_team_aliases_load_and_remap_reviewed_snapshot(self):
+        with patch.dict(os.environ, {"COFC_SHOT_MAP_DIR": str(DEFAULT_SHOT_MAP_DIR)}, clear=False):
+            result = get_shot_map("2025-11-02", "College of Charleston", "NC Wilmington")
+
+        self.assertTrue(result["available"])
+        self.assertEqual(result["home_team"], "College of Charleston")
+        self.assertEqual(result["away_team"], "NC Wilmington")
+        self.assertEqual(set(result["team_summaries"]), {"College of Charleston", "NC Wilmington"})
+        self.assertEqual({shot["team"] for shot in result["shots"]}, {"College of Charleston", "NC Wilmington"})
+
     def test_missing_snapshot_is_explicit(self):
         with tempfile.TemporaryDirectory() as root:
             with patch.dict(os.environ, {"COFC_SHOT_MAP_DIR": root}, clear=False):

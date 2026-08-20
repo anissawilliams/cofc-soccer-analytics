@@ -4,15 +4,47 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 
 DEFAULT_SHOT_MAP_DIR = Path(__file__).resolve().parents[1] / "pipeline" / "data" / "shot_maps"
 VALID_OUTCOMES = {"goal", "on_goal", "wide", "blocked", "on_post"}
+TEAM_ALIASES = {
+    "charlestoncougars": "cofc",
+    "collegeofcharleston": "cofc",
+    "cofc": "cofc",
+    "ncwilmington": "uncw",
+    "uncw": "uncw",
+    "uncwseahawks": "uncw",
+}
 
 
 def _unavailable(reason: str) -> dict:
     return {"available": False, "reason": reason}
+
+
+def _team_key(name: str | None) -> str:
+    normalized = re.sub(r"[^a-z0-9]", "", (name or "").lower())
+    return TEAM_ALIASES.get(normalized, normalized)
+
+
+def _use_requested_team_names(payload: dict, home_team: str, away_team: str) -> dict:
+    """Map reviewed snapshot aliases to the canonical names stored in Supabase."""
+    requested = {_team_key(home_team): home_team, _team_key(away_team): away_team}
+    snapshot_names = (payload["home_team"], payload["away_team"])
+    mapping = {name: requested[_team_key(name)] for name in snapshot_names}
+    payload["home_team"] = mapping[snapshot_names[0]]
+    payload["away_team"] = mapping[snapshot_names[1]]
+    payload["shots"] = [
+        {**shot, "team": mapping[shot["team"]]}
+        for shot in payload["shots"]
+    ]
+    payload["team_summaries"] = {
+        mapping[team]: summary
+        for team, summary in payload["team_summaries"].items()
+    }
+    return payload
 
 
 def _valid_payload(payload: object) -> bool:
@@ -60,7 +92,7 @@ def get_shot_map(
     if not candidates:
         return _unavailable("reviewed shot locations have not been published for this match")
 
-    requested_teams = {home_team, away_team} if home_team and away_team else None
+    requested_teams = {_team_key(home_team), _team_key(away_team)} if home_team and away_team else None
     saw_invalid = False
     for path in candidates:
         try:
@@ -71,13 +103,12 @@ def get_shot_map(
         if not _valid_payload(payload):
             saw_invalid = True
             continue
-        payload_teams = {payload["home_team"], payload["away_team"]}
+        payload_teams = {_team_key(payload["home_team"]), _team_key(payload["away_team"])}
         if requested_teams and payload_teams != requested_teams:
             continue
 
         if home_team and away_team:
-            payload["home_team"] = home_team
-            payload["away_team"] = away_team
+            payload = _use_requested_team_names(payload, home_team, away_team)
         return {"available": True, **payload}
 
     if saw_invalid:
