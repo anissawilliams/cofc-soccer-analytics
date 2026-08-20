@@ -387,6 +387,17 @@ def get_athlete_load(session_id: str | None = None, athlete_id: str | None = Non
 
 # ── New endpoints for CougTable v2 ────────────────────────────────────────────
 
+COUG_TABLE_WEIGHT_VERSION = "trial_1"
+
+
+def _is_published_match_score(row: dict, weight_version: str) -> bool:
+    """Keep the public table on one reviewed match-score definition."""
+    return (
+        row.get("score_type") == "match"
+        and (row.get("weight_version") or {}).get("version") == weight_version
+    )
+
+
 def get_seasons() -> list[str]:
     """Distinct seasons from session table."""
     try:
@@ -400,14 +411,18 @@ def get_seasons() -> list[str]:
         return ["2025"]
 
 
-def get_coug_scores_with_minutes(session_id: str) -> list[dict]:
+def get_coug_scores_with_minutes(
+    session_id: str,
+    weight_version: str = COUG_TABLE_WEIGHT_VERSION,
+) -> list[dict]:
     """
     COUG scores joined with minutes from athlete_session_stint for one match.
     """
     try:
         scores = get_client().table("coug_score").select(
             "id, aset_score, peak_score, set_piece_score, positional_score, "
-            "load_score, total_score, calculated_at, "
+            "load_score, total_score, calculated_at, score_type, "
+            "weight_version:weight_version_id(version), "
             "athlete:athlete_id(id, display_name, first_name, last_name, position, position_group), "
             "session:session_id(session_date, season, competition)"
         ).eq("session_id", session_id).execute()
@@ -422,6 +437,8 @@ def get_coug_scores_with_minutes(session_id: str) -> list[dict]:
 
         result = []
         for r in (scores.data or []):
+            if not _is_published_match_score(r, weight_version):
+                continue
             a = r.get("athlete") or {}
             s = r.get("session") or {}
             stint = stint_map.get(a.get("id"), {})
@@ -451,14 +468,18 @@ def get_coug_scores_with_minutes(session_id: str) -> list[dict]:
         return []
 
 
-def get_season_leaderboard_with_minutes(season: str) -> list[dict]:
+def get_season_leaderboard_with_minutes(
+    season: str,
+    weight_version: str = COUG_TABLE_WEIGHT_VERSION,
+) -> list[dict]:
     """
     Season leaderboard — aggregated scores + total minutes across all matches.
     """
     try:
         scores = get_client().table("coug_score").select(
             "aset_score, peak_score, set_piece_score, positional_score, "
-            "load_score, total_score, "
+            "load_score, total_score, score_type, "
+            "weight_version:weight_version_id(version), "
             "athlete:athlete_id(id, display_name, first_name, last_name, position, position_group), "
             "session:session_id(season)"
         ).execute()
@@ -478,6 +499,8 @@ def get_season_leaderboard_with_minutes(season: str) -> list[dict]:
         })
 
         for r in (scores.data or []):
+            if not _is_published_match_score(r, weight_version):
+                continue
             s = r.get("session") or {}
             if s.get("season") != season:
                 continue
@@ -525,11 +548,16 @@ def get_season_leaderboard_with_minutes(season: str) -> list[dict]:
         return []
 
 
-def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
+def get_player_match_history(
+    athlete_id: str,
+    season: str,
+    weight_version: str = COUG_TABLE_WEIGHT_VERSION,
+) -> list[dict]:
     """Per-match scores + minutes for a single player, with opponent name."""
     try:
         scores = get_client().table("coug_score").select(
-            "aset_score, peak_score, set_piece_score, total_score, "
+            "aset_score, peak_score, set_piece_score, total_score, score_type, "
+            "weight_version:weight_version_id(version), "
             "session:session_id(id, session_date, season, competition)"
         ).eq("athlete_id", athlete_id).execute()
 
@@ -564,6 +592,8 @@ def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
 
         result = []
         for r in (scores.data or []):
+            if not _is_published_match_score(r, weight_version):
+                continue
             s = r.get("session") or {}
             if s.get("season") != season:
                 continue

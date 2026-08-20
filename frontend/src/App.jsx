@@ -63,7 +63,6 @@ function PendingCard({ title, message }) {
 function TabNav({ active, onChange }) {
   const tabs = [
     { id: 'coug',      label: 'COUG Table' },
-    { id: 'coug2',     label: 'COUG Table v2' },
     { id: 'staff',     label: 'Staff' },
   ];
   return (
@@ -93,13 +92,6 @@ function TabNav({ active, onChange }) {
           }}
         >
           {t.label}
-          {t.id === 'coug2' && (
-            <span style={{
-              marginLeft: 6, fontSize: 9, fontWeight: 700,
-              background: colors.garnet, color: 'white',
-              padding: '2px 5px', borderRadius: 3, letterSpacing: 1,
-            }}>NEW</span>
-          )}
         </button>
       ))}
     </div>
@@ -266,14 +258,10 @@ function AnalyticsDashboard() {
   );
 }
 
-// ── Legacy COUG Dashboard wrapper ─────────────────────────────────────────────
-// Keeping the old CSV-based dashboard as Tab 2 while Tab 3 is the new Supabase version
-import COUGDashboardLegacy from './coug_dashboard.jsx';
-
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab] = useState('coug2');
-  const darkSurface = tab === 'coug2';
+  const [tab, setTab] = useState('coug');
+  const darkSurface = tab === 'coug';
 
   return (
     <div style={{ backgroundColor: darkSurface ? '#0a0806' : colors.background, minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -284,8 +272,7 @@ export default function App() {
         </h2>
         <TabNav active={tab} onChange={setTab} />
       </div>
-      {tab === 'coug'      && <div style={{ padding: '2rem' }}><COUGDashboardLegacy /></div>}
-      {tab === 'coug2' && (
+      {tab === 'coug' && (
         <Suspense fallback={<SectionLoader label="Loading COUG Table..." />}>
           <CougTable />
         </Suspense>

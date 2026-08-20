@@ -76,7 +76,6 @@ function AnalyticsDashboard() {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       fetch(`${API_URL}/api/leaders/recoveries`).then(res => res.json()),
       fetch(`${API_URL}/api/team/shots-by-time`).then(res => res.json()),
