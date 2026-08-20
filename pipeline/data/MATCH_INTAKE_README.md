@@ -17,10 +17,11 @@ Use `SPORTSCODE XML (NEW VERSION)`. If you also download the older
 `DOWNLOAD SPORTSCODE XML`, put the older file in `05_source_archive`, not in
 the source folder scanned by the notebook.
 
-## Keep Wyscout's Filenames
+## Filenames Are Flexible
 
-Do not rename, edit, convert, combine, or resave the downloaded files. A name
-ending in `(1)` is okay.
+The parser identifies each XML by its contents, not its filename. You may keep
+Wyscout's downloaded names or rename the files consistently. A name ending in
+`(1)` is also okay.
 
 Names may look like:
 
@@ -31,8 +32,27 @@ Charleston Cougars_team-events_02-11-2025_Charleston Cougars-UNCW Seahawks.xml
 UNCW Seahawks_team-events_02-11-2025_Charleston Cougars-UNCW Seahawks.xml
 ```
 
-Wyscout may use `DD-MM-YYYY` inside its filenames. Leave that unchanged. Our
-match folder uses `YYYY-MM-DD`.
+Wyscout may use `DD-MM-YYYY` inside its filenames. If you keep the vendor name,
+that is fine; our match folder still uses `YYYY-MM-DD`.
+
+If your team prefers cleaner names, use this optional convention:
+
+```text
+2026-08-20_davidson_wyscout_sportscode.xml
+2026-08-20_davidson_wyscout_cofc_player-events.xml
+2026-08-20_davidson_wyscout_opponent_player-events.xml
+2026-08-20_davidson_wyscout_cofc_team-events.xml
+2026-08-20_davidson_wyscout_opponent_team-events.xml
+2026-08-20_davidson_wyscout_effective-time.xml
+```
+
+The hard rules are:
+
+- Keep the `.xml` extension.
+- Put all current files for one match in that match's `00_source` folder.
+- Never overwrite an older source file. Move it to `05_source_archive` or add a
+  clear version suffix such as `_v2`.
+- Do not edit, convert, combine, or resave the XML contents.
 
 ## Match Folder
 
