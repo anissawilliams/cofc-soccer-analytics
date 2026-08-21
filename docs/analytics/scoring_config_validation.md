@@ -4,7 +4,7 @@ This report validates local Wyscout-to-COUG scoring configuration files.
 
 ## Summary
 
-- PEAK normalization rows: `11`
+- PEAK normalization rows: `12`
 - Wyscout metric-map rows: `21`
 - Errors: `0`
 - Warnings: `0`

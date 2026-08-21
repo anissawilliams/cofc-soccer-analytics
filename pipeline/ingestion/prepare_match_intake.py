@@ -38,7 +38,7 @@ COUG_SCORING_LABELS = {
     "Vol_Interception", "Tackles", "Clearances", "Anticipated",
     "Anticipation", "Pressing duel", "Loose ball duel", "Defensive duel",
     "1VS1", "Goal", "Assists", "Key passes", "Smart pass",
-    "Smart passes", "Opportunity", "Saves", "Free kick goal",
+    "Smart passes", "Opportunity", "Saves",
     "Free kick shot", "Aerial duels", "Cross", "Shots",
 }
 
