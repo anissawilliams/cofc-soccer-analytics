@@ -1,0 +1,40 @@
+{
+  "version": "reviewed_wyscout_report_v1",
+  "home_team": "CofC",
+  "away_team": "Davidson Wildcats",
+  "coordinate_system": {
+    "x": "0 left touchline to 100 right touchline",
+    "y": "0 own goal line to 100 opponent goal line",
+    "precision": "transcribed from plotted Wyscout match-report positions"
+  },
+  "team_summaries": {
+    "CofC": {"shots": 7, "xg": 1.05, "on_goal": 3, "goals": 1, "big_chances": 2, "psxg": 1.65},
+    "Davidson Wildcats": {"shots": 9, "xg": 0.66, "on_goal": 2, "goals": 1, "big_chances": 0, "psxg": 0.21}
+  },
+  "shots": [
+    {"shot_id": "charleston-1", "team": "CofC", "sequence": 1, "player": "J. Jordheim", "minute": 1, "minute_label": "1", "outcome": "on_goal", "shot_type": "Left foot, after corner", "xg": 0.06, "xg_display": "0.06", "psxg": 0.09, "psxg_display": "0.09", "x": 35.0, "y": 77.6},
+    {"shot_id": "charleston-2", "team": "CofC", "sequence": 2, "player": "M. Takanashi", "minute": 3, "minute_label": "3", "outcome": "wide", "shot_type": "Right foot", "xg": 0.07, "xg_display": "0.07", "psxg": null, "psxg_display": null, "x": 71.9, "y": 57.3},
+    {"shot_id": "charleston-3", "team": "CofC", "sequence": 3, "player": "M. Lenert", "minute": 9, "minute_label": "9", "outcome": "goal", "shot_type": "Right foot", "xg": 0.42, "xg_display": "0.42", "psxg": 0.74, "psxg_display": "0.74", "x": 60.3, "y": 72.0},
+    {"shot_id": "charleston-4", "team": "CofC", "sequence": 4, "player": "S. Bendvold", "minute": 73, "minute_label": "73", "outcome": "wide", "shot_type": "Head", "xg": 0.08, "xg_display": "0.08", "psxg": null, "psxg_display": null, "x": 44.7, "y": 73.9},
+    {"shot_id": "charleston-5", "team": "CofC", "sequence": 5, "player": "M. Takanashi", "minute": 92, "minute_label": "90+2", "outcome": "blocked", "shot_type": "Right foot", "xg": 0.02, "xg_display": "0.02", "psxg": null, "psxg_display": null, "x": 41.8, "y": 42.7},
+    {"shot_id": "charleston-6", "team": "CofC", "sequence": 6, "player": "M. Lenert", "minute": 102, "minute_label": "90+12", "outcome": "on_goal", "shot_type": "Head", "xg": 0.31, "xg_display": "0.31", "psxg": 0.82, "psxg_display": "0.82", "x": 57.4, "y": 84.4},
+    {"shot_id": "charleston-7", "team": "CofC", "sequence": 7, "player": "A. Butts", "minute": 103, "minute_label": "90+13", "outcome": "wide", "shot_type": "Left foot, after corner", "xg": 0.09, "xg_display": "0.09", "psxg": null, "psxg_display": null, "x": 36.9, "y": 75.8},
+    {"shot_id": "davidson-1", "team": "Davidson Wildcats", "sequence": 1, "player": "B. McGlone", "minute": 13, "minute_label": "13", "outcome": "on_goal", "shot_type": "Right foot", "xg": 0.09, "xg_display": "0.09", "psxg": 0.05, "psxg_display": "0.05", "x": 34.0, "y": 70.7},
+    {"shot_id": "davidson-2", "team": "Davidson Wildcats", "sequence": 2, "player": "T. Ibe", "minute": 49, "minute_label": "45+4", "outcome": "wide", "shot_type": "Head", "xg": 0.05, "xg_display": "0.05", "psxg": null, "psxg_display": null, "x": 33.0, "y": 74.8},
+    {"shot_id": "davidson-3", "team": "Davidson Wildcats", "sequence": 3, "player": "C. Frink", "minute": 50, "minute_label": "45+5", "outcome": "wide", "shot_type": "Right foot", "xg": 0.06, "xg_display": "0.06", "psxg": null, "psxg_display": null, "x": 61.3, "y": 67.4},
+    {"shot_id": "davidson-4", "team": "Davidson Wildcats", "sequence": 4, "player": "C. Frink", "minute": 53, "minute_label": "45+8", "outcome": "goal", "shot_type": "Right foot", "xg": 0.04, "xg_display": "0.04", "psxg": 0.16, "psxg_display": "0.16", "x": 50.6, "y": 45.1},
+    {"shot_id": "davidson-5", "team": "Davidson Wildcats", "sequence": 5, "player": "A. Boudro", "minute": 52, "minute_label": "52", "outcome": "blocked", "shot_type": "Left foot", "xg": 0.17, "xg_display": "0.17", "psxg": null, "psxg_display": null, "x": 36.9, "y": 76.8},
+    {"shot_id": "davidson-6", "team": "Davidson Wildcats", "sequence": 6, "player": "M. Thissell", "minute": 64, "minute_label": "64", "outcome": "wide", "shot_type": "Right foot", "xg": 0.02, "xg_display": "0.02", "psxg": null, "psxg_display": null, "x": 62.3, "y": 47.2},
+    {"shot_id": "davidson-7", "team": "Davidson Wildcats", "sequence": 7, "player": "C. Muse", "minute": 68, "minute_label": "68", "outcome": "wide", "shot_type": "Right foot", "xg": 0.11, "xg_display": "0.11", "psxg": null, "psxg_display": null, "x": 63.3, "y": 72.8},
+    {"shot_id": "davidson-8", "team": "Davidson Wildcats", "sequence": 8, "player": "B. McGlone", "minute": 94, "minute_label": "90+4", "outcome": "wide", "shot_type": "Head", "xg": 0.07, "xg_display": "0.07", "psxg": null, "psxg_display": null, "x": 40.8, "y": 72.8},
+    {"shot_id": "davidson-9", "team": "Davidson Wildcats", "sequence": 9, "player": "A. Boudro", "minute": 98, "minute_label": "90+8", "outcome": "wide", "shot_type": "Head", "xg": 0.06, "xg_display": "0.06", "psxg": null, "psxg_display": null, "x": 51.6, "y": 70.7}
+  ],
+  "coverage": {"shots": 16, "located_shots": 16, "xg_labeled_shots": 16, "psxg_labeled_shots": 5},
+  "source": {
+    "label": "Wyscout Match Report, pages 12-13",
+    "file": "CofC - Davidson Wildcats 1-1.pdf",
+    "reviewed": true,
+    "notes": "Shot facts were transcribed from the report tables; normalized locations were transcribed from the numbered report plots."
+  }
+}
+
