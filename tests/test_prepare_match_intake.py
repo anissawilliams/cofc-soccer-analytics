@@ -195,7 +195,78 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(len(parsed["player_events"]), 2)
         evaluations = {item["file"]: item for item in status["candidate_evaluations"]}
         self.assertEqual(evaluations[cofc_path.name]["roster_match_ratio"], 1.0)
+        self.assertEqual(evaluations[cofc_path.name]["roster_matched_players"], 1)
         self.assertEqual(evaluations["opponent-player-events.xml"]["roster_matched_events"], 0)
+
+    def test_scoring_candidate_prioritizes_roster_coverage_over_tiny_perfect_file(self):
+        complete_path = self.root / "combined.xml"
+        complete_path.write_text(
+            scoring_xml([
+                "(3) J. Jordheim",
+                "(17) R. Watson",
+                "(7) Opponent Player",
+            ]),
+            encoding="utf-8",
+        )
+        (self.root / "tiny.xml").write_text(
+            scoring_xml(["(3) J. Jordheim"]),
+            encoding="utf-8",
+        )
+        roster = self.root / "roster.csv"
+        roster.write_text(
+            "number,name\n3,J. Jordheim\n17,R. Watson\n",
+            encoding="utf-8",
+        )
+
+        status, parsed = validate_scoring_candidate(discover_exports(self.root), roster)
+
+        self.assertTrue(status["ready"])
+        self.assertEqual(status["selected_file"], complete_path.name)
+        self.assertEqual({event["name"] for event in parsed["player_events"]}, {"J. Jordheim", "R. Watson"})
+
+    def test_scoring_candidate_uses_profile_identity_not_duplicate_basename(self):
+        weak_dir = self.root / "weak"
+        strong_dir = self.root / "strong"
+        weak_dir.mkdir()
+        strong_dir.mkdir()
+        filename = "player-events.xml"
+        (weak_dir / filename).write_text(
+            scoring_xml(["(3) J. Jordheim", "(7) Opponent Player"]),
+            encoding="utf-8",
+        )
+        strong_path = strong_dir / filename
+        strong_path.write_text(
+            scoring_xml(["(3) J. Jordheim", "(17) R. Watson"]),
+            encoding="utf-8",
+        )
+        roster = self.root / "roster.csv"
+        roster.write_text(
+            "number,name\n3,J. Jordheim\n17,R. Watson\n",
+            encoding="utf-8",
+        )
+
+        status, parsed = validate_scoring_candidate(discover_exports(self.root), roster)
+
+        self.assertTrue(status["ready"])
+        self.assertEqual(status["selected_file"], filename)
+        self.assertEqual(status["selected_path"], strong_path.as_posix())
+        self.assertEqual({event["name"] for event in parsed["player_events"]}, {"J. Jordheim", "R. Watson"})
+
+    def test_equally_strong_scoring_candidates_fail_closed(self):
+        for directory in (self.root / "one", self.root / "two"):
+            directory.mkdir()
+            (directory / "player-events.xml").write_text(
+                scoring_xml(["(3) J. Jordheim"]),
+                encoding="utf-8",
+            )
+        roster = self.root / "roster.csv"
+        roster.write_text("number,name\n3,J. Jordheim\n", encoding="utf-8")
+
+        status, parsed = validate_scoring_candidate(discover_exports(self.root), roster)
+
+        self.assertFalse(status["ready"])
+        self.assertIsNone(parsed)
+        self.assertIn("staff selection required", status["reason"])
 
     def test_cli_creates_review_bundle_without_publishing(self):
         output_temp = tempfile.TemporaryDirectory()
@@ -207,7 +278,7 @@ class MatchIntakeTests(unittest.TestCase):
         roster.write_text("number,name\n3,J. Jordheim\n", encoding="utf-8")
         script = INGESTION_DIR / "prepare_match_intake.py"
 
-        subprocess.run([
+        completed = subprocess.run([
             sys.executable,
             str(script),
             "--input-dir", str(self.root),
@@ -217,6 +288,9 @@ class MatchIntakeTests(unittest.TestCase):
             "--roster", str(roster),
             "--metadata", str(metadata),
         ], check=True, capture_output=True, text=True)
+
+        self.assertEqual(json.loads(completed.stdout)["slug"], "2026-08-20_opponent")
+        self.assertIn("Prepared intake outputs:", completed.stderr)
 
         saved = json.loads(
             (output_dir / "2026-08-20_opponent_intake_report.json").read_text(encoding="utf-8")

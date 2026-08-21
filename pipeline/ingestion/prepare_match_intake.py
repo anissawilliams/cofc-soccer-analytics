@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -351,17 +352,22 @@ def write_rows(path: Path, rows: list[dict]) -> None:
 
 def _roster_match_summary(profile: XmlProfile, roster: dict[str, set[str]]) -> dict:
     matched = 0
+    matched_players = set()
     for row in _instances(profile.path):
         match = PLAYER_CODE_PARTS.fullmatch(row["code"])
         if not match:
             continue
         jersey, name = match.groups()
-        if normalize_player_name(name) in roster.get(jersey, set()):
+        normalized_name = normalize_player_name(name)
+        if normalized_name in roster.get(jersey, set()):
             matched += 1
+            matched_players.add((jersey, normalized_name))
     return {
         "file": profile.path.name,
+        "path": profile.path.as_posix(),
         "player_events": profile.player_events,
         "roster_matched_events": matched,
+        "roster_matched_players": len(matched_players),
         "roster_match_ratio": matched / profile.player_events if profile.player_events else 0.0,
     }
 
@@ -382,8 +388,15 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         }, None
 
     roster = load_cofc_roster(roster_path)
-    evaluations = [_roster_match_summary(profile, roster) for profile in scoring_files]
-    viable = [item for item in evaluations if item["roster_matched_events"] > 0]
+    evaluated = [
+        (profile, _roster_match_summary(profile, roster))
+        for profile in scoring_files
+    ]
+    evaluations = [item for _, item in evaluated]
+    viable = [
+        (profile, item) for profile, item in evaluated
+        if item["roster_matched_events"] > 0
+    ]
     if not viable:
         return {
             "ready": False,
@@ -393,12 +406,20 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         }, None
 
     best_quality = max(
-        (item["roster_match_ratio"], item["roster_matched_events"])
-        for item in viable
+        (
+            item["roster_matched_players"],
+            item["roster_match_ratio"],
+            item["roster_matched_events"],
+        )
+        for _, item in viable
     )
     selected = [
-        item for item in viable
-        if (item["roster_match_ratio"], item["roster_matched_events"]) == best_quality
+        (profile, item) for profile, item in viable
+        if (
+            item["roster_matched_players"],
+            item["roster_match_ratio"],
+            item["roster_matched_events"],
+        ) == best_quality
     ]
     if len(selected) != 1:
         return {
@@ -408,8 +429,7 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
             "candidate_evaluations": evaluations,
         }, None
 
-    selected_name = selected[0]["file"]
-    scoring_file = next(profile for profile in scoring_files if profile.path.name == selected_name)
+    scoring_file = selected[0][0]
 
     parsed = parse_sportscode(scoring_file.path, roster_path=roster_path)
     player_events = parsed["player_events"]
@@ -424,6 +444,8 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         "candidate_files": [profile.path.name for profile in scoring_files],
         "candidate_evaluations": evaluations,
         "selected_file": scoring_file.path.name,
+        "selected_path": scoring_file.path.as_posix(),
+        "selection_rule": "most roster-matched players, then match ratio, then matched events",
         "roster": str(roster_path),
         "roster_players": len(roster_players),
         "scoring_events": len(player_events),
@@ -625,7 +647,7 @@ def main() -> None:
         write_rows(output_dir / f"{args.slug}_players.csv", scoring_data["player_events"])
         write_rows(output_dir / f"{args.slug}_all_player_events.csv", scoring_data["all_player_events"])
         write_rows(output_dir / f"{args.slug}_sportscode_team_events.csv", scoring_data["team_events"])
-    print(f"Prepared intake outputs: {output_dir}")
+    print(f"Prepared intake outputs: {output_dir}", file=sys.stderr)
 
 
 if __name__ == "__main__":
