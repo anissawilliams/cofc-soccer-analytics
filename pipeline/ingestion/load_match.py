@@ -127,7 +127,9 @@ def fuzzy_match_athlete(name: str, athletes: list[dict]) -> tuple[dict | None, i
     if result is None:
         return None, 0
 
-    best_id, score, _ = result
+    # RapidFuzz returns (matched value, score, mapping key) for dictionary
+    # choices. The mapping key is the athlete UUID.
+    _, score, best_id = result
     if score >= FUZZY_THRESHOLD:
         match = next(a for a in athletes if a["id"] == best_id)
         return match, score
@@ -225,14 +227,17 @@ def load_or_create_match(
     """
     Upsert a match row linked to session_id. Returns match_id.
     """
-    existing = (
+    # A newly planned dry-run session has no real UUID and therefore cannot be
+    # queried through the UUID-typed match.session_id column.
+    existing_rows = [] if dry_run and session_id == "dry-run-session-id" else (
         sb.table("match")
         .select("id")
         .eq("session_id", session_id)
         .execute()
+        .data or []
     )
-    if existing.data:
-        match_id = existing.data[0]["id"]
+    if existing_rows:
+        match_id = existing_rows[0]["id"]
         log.info(f"  Match exists: {match_id}")
         return match_id
 
@@ -373,14 +378,15 @@ def load_stints(
             continue
 
         # Check if stint already exists
-        existing = (
+        existing_rows = [] if dry_run else (
             sb.table("athlete_session_stint")
             .select("id")
             .eq("athlete_id", athlete_id)
             .eq("session_id", session_id)
             .execute()
+            .data or []
         )
-        if existing.data:
+        if existing_rows:
             continue
 
         mins = float(row.get("estimated_minutes", 90))

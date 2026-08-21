@@ -269,6 +269,43 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(status["selected_file"], complete_path.name)
         self.assertEqual({event["name"] for event in parsed["player_events"]}, {"J. Jordheim", "R. Watson"})
 
+    def test_scoring_candidate_prefers_rich_sportscode_taxonomy(self):
+        rich_path = self.root / "sportscode-master.xml"
+        rich_path.write_text(
+            scoring_xml([
+                "(3) J. Jordheim",
+                "(17) R. Watson",
+            ]).replace(
+                "<label><text>Plus</text></label>",
+                "<label><text>Plus</text></label>"
+                "<label><text>Goal</text></label>"
+                "<label><text>Smart passes</text></label>",
+            ),
+            encoding="utf-8",
+        )
+        scoped_path = self.root / "team-scoped-player-events.xml"
+        scoped_path.write_text(
+            scoring_xml([
+                "(3) J. Jordheim",
+                "(17) R. Watson",
+                "(3) J. Jordheim",
+            ]),
+            encoding="utf-8",
+        )
+        roster = self.root / "roster.csv"
+        roster.write_text(
+            "number,name\n3,J. Jordheim\n17,R. Watson\n",
+            encoding="utf-8",
+        )
+
+        status, _ = validate_scoring_candidate(discover_exports(self.root), roster)
+
+        self.assertTrue(status["ready"])
+        self.assertEqual(status["selected_file"], rich_path.name)
+        evaluations = {item["file"]: item for item in status["candidate_evaluations"]}
+        self.assertEqual(evaluations[rich_path.name]["scoring_label_types"], 2)
+        self.assertEqual(evaluations[scoped_path.name]["scoring_label_types"], 0)
+
     def test_scoring_candidate_uses_profile_identity_not_duplicate_basename(self):
         weak_dir = self.root / "weak"
         strong_dir = self.root / "strong"
