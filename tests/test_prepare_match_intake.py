@@ -15,6 +15,7 @@ from prepare_match_intake import (  # noqa: E402
     build_intake_report,
     build_validation_summary,
     discover_exports,
+    deduplicate_profiles,
     inventory_source_files,
     merge_team_event_pair,
     profile_xml,
@@ -128,6 +129,50 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(item["extension"], ".pdf")
         self.assertEqual(item["size_bytes"], 13)
         self.assertEqual(len(item["sha256"]), 64)
+
+    def test_exact_duplicate_exports_are_archived_but_not_parsed_twice(self):
+        duplicate_team = self.root / "another export (1).xml"
+        duplicate_team.write_bytes(self.opponent.read_bytes())
+        scoring = self.root / "cofc-player-events.xml"
+        scoring.write_text(scoring_xml(["(3) J. Jordheim"]), encoding="utf-8")
+        duplicate_scoring = self.root / "cofc-player-events (1).xml"
+        duplicate_scoring.write_bytes(scoring.read_bytes())
+        roster = self.root / "roster.csv"
+        roster.write_text("number,name\n3,J. Jordheim\n", encoding="utf-8")
+
+        profiles = discover_exports(self.root)
+        unique, duplicate_of = deduplicate_profiles(profiles)
+        report, events = build_intake_report(self.root, "2026-08-20_opponent")
+        status, parsed = validate_scoring_candidate(unique, roster)
+
+        self.assertEqual(len(profiles), 5)
+        self.assertEqual(len(unique), 3)
+        self.assertEqual(duplicate_of[duplicate_team], self.opponent)
+        self.assertEqual(duplicate_of[duplicate_scoring], scoring)
+        self.assertEqual(len(report["source_manifest"]), 6)
+        self.assertEqual(len(report["duplicate_sources"]), 2)
+        self.assertTrue(report["analytics"]["ready"])
+        self.assertEqual(len(events), 2)
+        self.assertTrue(status["ready"])
+        self.assertEqual(status["selected_file"], scoring.name)
+        self.assertEqual(len(parsed["player_events"]), 1)
+
+    def test_effective_time_export_is_classified_from_labels(self):
+        effective = self.root / "mystery.xml"
+        effective.write_text(
+            "<root><instances>"
+            "<instance><code>1</code><start>0</start><end>23</end>"
+            "<label><text>Effective Time</text></label></instance>"
+            "<instance><code></code><start>0</start><end>0</end>"
+            "<label><text>First half start</text></label></instance>"
+            "</instances></root>",
+            encoding="utf-8",
+        )
+
+        profile = profile_xml(effective)
+
+        self.assertEqual(profile.kind, "effective_time_xml")
+        self.assertEqual(profile.team, "")
 
     def test_invalid_xml_is_reported_instead_of_crashing_intake(self):
         broken = self.root / "broken export.xml"

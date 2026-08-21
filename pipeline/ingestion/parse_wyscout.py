@@ -99,13 +99,24 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
         end    = float(inst.find("end").text)   if inst.find("end")   is not None else 0
         labels = [l.text for l in inst.findall(".//text") if l.text]
 
-        # Half offset markers
-        if code == "Offsets":
-            for label in labels:
-                if "First half start"  in label: halves["first_start"]  = start
-                if "First half end"    in label: halves["first_end"]    = end
-                if "Second half start" in label: halves["second_start"] = start
-                if "Second half end"   in label: halves["second_end"]   = end
+        # Half markers are identified by their semantic labels. Some Wyscout
+        # exports use ``Offsets`` as the code; team-scoped player exports can
+        # leave the code blank while retaining the same marker labels.
+        has_half_marker = False
+        for label in labels:
+            if "First half start" in label:
+                halves["first_start"] = start
+                has_half_marker = True
+            if "First half end" in label:
+                halves["first_end"] = end
+                has_half_marker = True
+            if "Second half start" in label:
+                halves["second_start"] = start
+                has_half_marker = True
+            if "Second half end" in label:
+                halves["second_end"] = end
+                has_half_marker = True
+        if code == "Offsets" or has_half_marker:
             continue
 
         # Player events — code matches "(jersey) Name" pattern
