@@ -67,10 +67,14 @@ class CougTableDataContractTests(unittest.TestCase):
         rows = public_score_rows([
             {"total_score": 10, "minutes_played": 90},
             {"total_score": 10, "minutes_played": 19},
+            {"total_score": "5.25", "minutes_played": "70"},
+            {"total_score": 0, "minutes_played": 90},
         ])
 
         self.assertEqual(rows[0]["total_per90"], 10)
         self.assertIsNone(rows[1]["total_per90"])
+        self.assertEqual(rows[2]["total_per90"], 6.75)
+        self.assertEqual(rows[3]["total_per90"], 0)
 
     def test_public_table_accepts_only_reviewed_match_scores_for_one_version(self):
         reviewed = {

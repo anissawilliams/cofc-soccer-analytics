@@ -3,31 +3,31 @@ import { cachedApiFetch } from "./apiCache";
 
 // ─── Design tokens — Cougars identity ────────────────────────────────────────
 const T = {
-  bg:           "#1a0a0a",
-  surface:      "#220d0d",
-  surface2:     "#2d1010",
-  border:       "#3d1a1a",
-  borderGold:   "#4a3800",
+  bg:           "#171112",
+  surface:      "#241a1c",
+  surface2:     "#302326",
+  border:       "#49353a",
+  borderGold:   "#6b5d27",
   garnet:       "#800000",
   garnetBright: "#a01020",
-  garnetLight:  "#c0263b",
-  gold:         "#CFB53B",
-  goldDim:      "#8a7a28",
+  garnetLight:  "#d13a50",
+  gold:         "#dec75c",
+  goldDim:      "#baa64a",
   goldFaint:    "#CFB53B14",
   goldBg:       "#CFB53B22",
-  text:         "#f5ede0",
-  textMuted:    "#c8a888",
-  muted:        "#7a5a4a",
-  dim:          "#3d1a1a",
+  text:         "#fffaf3",
+  textMuted:    "#d7c8bd",
+  muted:        "#b39e95",
+  dim:          "#3a292d",
   green:        "#1a5c2a",
   greenText:    "#4ade80",
   redText:      "#f87171",
   drawText:     "#CFB53B",
 };
 
-const ASET_COLOR = "#c0263b";
-const PEAK_COLOR = "#CFB53B";
-const SP_COLOR   = "#8a7a55";
+const ASET_COLOR = "#e2556a";
+const PEAK_COLOR = "#dec75c";
+const SP_COLOR   = "#bcae9e";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const CONFIGURED_ACTIVE_SEASON = import.meta.env.VITE_ACTIVE_SEASON || "2026";
@@ -39,6 +39,9 @@ async function apiFetch(path) {
 function fmtScore(v) {
   if (v === null || v === undefined) return "—";
   return Number(v).toFixed(2);
+}
+function hasScore(v) {
+  return v !== null && v !== undefined && Number.isFinite(Number(v));
 }
 function fmtMins(v) {
   if (!v && v !== 0) return "—";
@@ -54,7 +57,7 @@ function ScoreBar({ value, max, color }) {
         <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2,
           boxShadow: pct > 60 ? `0 0 6px ${color}88` : "none" }} />
       </div>
-      <span style={{ fontSize: 12, fontVariantNumeric: "tabular-nums", color: T.text,
+      <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", color: T.text,
         minWidth: 38, textAlign: "right", fontWeight: 500 }}>
         {fmtScore(value)}
       </span>
@@ -65,7 +68,7 @@ function ScoreBar({ value, max, color }) {
 // ─── Minutes display ──────────────────────────────────────────────────────────
 function MinutesDisplay({ minutes }) {
   return (
-    <span style={{ fontSize: 12, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
+    <span style={{ fontSize: 13, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
       {fmtMins(minutes)}
     </span>
   );
@@ -78,7 +81,7 @@ function ResultChip({ result, gf, ga }) {
   const bg    = result === "W" ? "#14532d44" : result === "L" ? "#7f1d1d44" : "#78350f44";
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, padding: "2px 6px",
+      fontSize: 11, fontWeight: 700, padding: "2px 6px",
       borderRadius: 3, background: bg, color,
     }}>
       {result} {gf !== null && ga !== null ? `${gf}–${ga}` : ""}
@@ -91,7 +94,7 @@ const COLS_SEASON = "28px 60px minmax(130px,1fr) 110px 44px 1fr 1fr 80px 88px 72
 const COLS_MATCH  = "28px 60px minmax(130px,1fr) 110px 1fr 1fr 80px 88px";
 
 function TableHeader({ isSeason }) {
-  const h = { fontSize: 12, color: T.muted, letterSpacing: 2, fontWeight: 800, textTransform: "uppercase" };
+  const h = { fontSize: 13, color: T.textMuted, letterSpacing: 1.6, fontWeight: 800, textTransform: "uppercase" };
   return (
     <div style={{
       display: "grid",
@@ -111,7 +114,7 @@ function TableHeader({ isSeason }) {
       <span style={{ ...h, color: PEAK_COLOR }}>PEAK</span>
       <span style={{ ...h, color: SP_COLOR }}>SP</span>
       <span style={{ ...h, textAlign: "right" }}>TOTAL</span>
-      {isSeason && <span style={{ ...h, textAlign: "right", color: T.gold }}>/90</span>}
+      {isSeason && <span title="Score per 90 minutes (minimum 20 minutes played)" style={{ ...h, textAlign: "right", color: T.gold }}>/90</span>}
     </div>
   );
 }
@@ -129,7 +132,7 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
         display: "grid",
         gridTemplateColumns: isSeason ? COLS_SEASON : COLS_MATCH,
         gap: 8, alignItems: "center",
-        padding: "11px 28px",
+        padding: "13px 28px",
         borderBottom: `1px solid ${T.border}`,
         background: bg,
         cursor: "pointer",
@@ -141,7 +144,7 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
     >
       {/* Rank */}
       <span style={{
-        fontSize: isTop3 ? 13 : 11,
+        fontSize: isTop3 ? 14 : 12,
         fontWeight: isTop3 ? 800 : 400,
         color: rankColor,
         fontVariantNumeric: "tabular-nums",
@@ -152,8 +155,8 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
 
       {/* Position */}
       <span style={{
-        fontSize: 12, fontWeight: 700, letterSpacing: 1,
-        color: T.muted,
+        fontSize: 13, fontWeight: 700, letterSpacing: 1,
+        color: T.textMuted,
         background: T.dim, borderRadius: 3,
         padding: "2px 6px", textAlign: "center",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -163,7 +166,7 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
 
       {/* Name */}
       <span style={{
-        fontSize: 13, fontWeight: selected ? 700 : 600,
+        fontSize: 15, fontWeight: selected ? 700 : 600,
         color: selected ? T.gold : T.text,
         letterSpacing: 0.2,
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -176,7 +179,7 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
 
       {/* MP — season only */}
       {isSeason && (
-        <span style={{ fontSize: 12, color: T.textMuted, textAlign: "center",
+        <span style={{ fontSize: 13, color: T.textMuted, textAlign: "center",
           fontVariantNumeric: "tabular-nums" }}>
           {player.matches || "—"}
         </span>
@@ -194,7 +197,7 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
       {/* Total */}
       <div style={{ textAlign: "right" }}>
         <span style={{
-          fontSize: isTop3 ? 15 : 13,
+          fontSize: isTop3 ? 17 : 15,
           fontWeight: 800,
           color: isTop3 ? T.gold : T.text,
           fontVariantNumeric: "tabular-nums",
@@ -205,13 +208,13 @@ function PlayerRow({ player, rank, maxTotal, isSeason, selected, onClick }) {
 
       {/* /90 — season only */}
       {isSeason && (
-        <div style={{ textAlign: "right" }}>
+        <div title={hasScore(player.total_per90) ? "Score per 90 minutes" : "Available after 20 minutes played"} style={{ textAlign: "right" }}>
           <span style={{
-            fontSize: 12, fontWeight: 500,
-            color: player.total_per90 !== null ? T.goldDim : T.muted,
+            fontSize: 14, fontWeight: 650,
+            color: hasScore(player.total_per90) ? T.gold : T.muted,
             fontVariantNumeric: "tabular-nums",
           }}>
-            {player.total_per90 !== null ? fmtScore(player.total_per90) : "—"}
+            {hasScore(player.total_per90) ? fmtScore(player.total_per90) : "—"}
           </span>
         </div>
       )}
@@ -299,7 +302,7 @@ function PlayerPanel({ player, history }) {
           <div style={{ background: T.surface2, border: `1px solid ${T.borderGold}`, borderRadius: 6, padding: "10px 12px" }}>
             <div style={{ fontSize: 11, color: T.muted, letterSpacing: 1 }}>SCORE / 90</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.gold }}>
-              {player.total_per90 !== null ? fmtScore(player.total_per90) : "—"}
+              {hasScore(player.total_per90) ? fmtScore(player.total_per90) : "—"}
             </div>
           </div>
         </div>
@@ -479,7 +482,7 @@ export default function CougTable() {
   const selectStyle = {
     background: T.surface2, border: `1px solid ${T.border}`,
     color: T.text, padding: "6px 12px", borderRadius: 4,
-    fontSize: 12, cursor: "pointer", outline: "none",
+    fontSize: 13, cursor: "pointer", outline: "none",
   };
 
   function changeSeason(nextSeason) {
@@ -580,8 +583,8 @@ export default function CougTable() {
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
               <div>
-                <div style={{ fontSize: 11, color: t.color, letterSpacing: 2, fontWeight: 800 }}>{t.label}</div>
-                <div style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5, marginTop: 1 }}>{t.sub}</div>
+                <div style={{ fontSize: 12, color: t.color, letterSpacing: 2, fontWeight: 800 }}>{t.label}</div>
+                <div style={{ fontSize: 12, color: T.muted, letterSpacing: 1.5, marginTop: 1 }}>{t.sub}</div>
               </div>
               <div style={{
                 fontFamily: "'Oswald', 'Impact', sans-serif",
@@ -610,7 +613,7 @@ export default function CougTable() {
             borderBottom: tab === t ? `2px solid ${T.gold}` : "2px solid transparent",
             color: tab === t ? T.gold : T.muted,
             fontFamily: "'Oswald', sans-serif",
-            fontSize: 14, fontWeight: 700, letterSpacing: 2,
+            fontSize: 15, fontWeight: 700, letterSpacing: 2,
             padding: "13px 24px", cursor: "pointer",
             textTransform: "uppercase", transition: "color 0.15s",
             marginBottom: -1,
@@ -622,7 +625,7 @@ export default function CougTable() {
         {/* Match dropdown */}
         {tab === "match" && matches.length > 0 && (
           <div style={{ marginLeft: 16, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>VS</span>
+            <span style={{ fontSize: 12, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>VS</span>
             <select
               value={selectedMatch?.session_id || selectedMatch?.match_id || ""}
               onChange={e => changeMatch(e.target.value)}
@@ -650,7 +653,7 @@ export default function CougTable() {
               background: filterPos === g ? T.garnet : "transparent",
               border: `1px solid ${filterPos === g ? T.garnetLight : T.border}`,
               color: filterPos === g ? T.gold : T.muted,
-              fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
+              fontSize: 13, fontWeight: 800, letterSpacing: 1.5,
               padding: "6px 14px", borderRadius: 3, cursor: "pointer",
               transition: "all 0.12s",
             }}>{g}</button>
@@ -659,7 +662,7 @@ export default function CougTable() {
 
         {/* Sort */}
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>SORT</span>
+          <span style={{ fontSize: 12, color: T.muted, letterSpacing: 1.5, fontWeight: 700 }}>SORT</span>
           {[
             { key: "total", label: "TOTAL" },
             { key: "aset",  label: "ASET"  },
@@ -670,7 +673,7 @@ export default function CougTable() {
               background: sortBy === s.key ? T.goldBg : "transparent",
               border: `1px solid ${sortBy === s.key ? T.gold : T.border}`,
               color: sortBy === s.key ? T.gold : T.muted,
-              fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
+              fontSize: 13, fontWeight: 800, letterSpacing: 1.5,
               padding: "6px 14px", borderRadius: 3, cursor: "pointer",
               transition: "all 0.12s",
             }}>{s.label}</button>
@@ -737,12 +740,12 @@ export default function CougTable() {
           {[[" ASET — Defense", ASET_COLOR], ["PEAK — Offense", PEAK_COLOR], ["Set Piece", SP_COLOR]].map(([l, c]) => (
             <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
-              <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
+              <span style={{ fontSize: 12, color: T.muted }}>{l}</span>
             </div>
           ))}
         </div>
-        <span style={{ fontSize: 11, color: T.muted, letterSpacing: 1.5 }}>
-          WYSCOUT · TRIAL_1 WEIGHTS · {season}
+        <span style={{ fontSize: 12, color: T.muted, letterSpacing: 1.2 }}>
+          /90 MIN. 20 MINUTES · WYSCOUT · TRIAL_1 WEIGHTS · {season}
         </span>
       </div>
     </div>
