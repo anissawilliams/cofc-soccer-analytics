@@ -51,6 +51,21 @@ class ShotMapTests(unittest.TestCase):
         self.assertEqual(result["team_summaries"]["College of Charleston"]["xg"], 1.09)
         self.assertEqual(result["coverage"]["located_shots"], 17)
 
+    def test_tracked_davidson_snapshot_matches_the_official_report(self):
+        with patch.dict(os.environ, {"COFC_SHOT_MAP_DIR": str(DEFAULT_SHOT_MAP_DIR)}, clear=False):
+            result = get_shot_map(
+                "2026-08-20",
+                "College of Charleston",
+                "Davidson Wildcats",
+                ("CofC",),
+            )
+        self.assertTrue(result["available"])
+        self.assertEqual(len(result["shots"]), 16)
+        self.assertEqual(result["team_summaries"]["College of Charleston"]["xg"], 1.05)
+        self.assertEqual(result["team_summaries"]["Davidson Wildcats"]["xg"], 0.66)
+        self.assertEqual(result["coverage"]["located_shots"], 16)
+        self.assertEqual(sum(shot["outcome"] == "goal" for shot in result["shots"]), 2)
+
     def test_db_short_names_load_and_remap_reviewed_snapshot(self):
         with patch.dict(os.environ, {"COFC_SHOT_MAP_DIR": str(DEFAULT_SHOT_MAP_DIR)}, clear=False):
             result = get_shot_map(
