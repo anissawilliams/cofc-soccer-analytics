@@ -19,11 +19,12 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from parse_wyscout import parse_sportscode, read_xml
+from parse_wyscout import load_cofc_roster, normalize_player_name, parse_sportscode, read_xml
 from source_paths import get_source_paths
 
 
 PLAYER_CODE = re.compile(r"\(\d+\)\s+.+")
+PLAYER_CODE_PARTS = re.compile(r"\((\d+)\)\s+(.+)")
 PERIOD_LABELS = {
     "First half start",
     "First half end",
@@ -348,6 +349,23 @@ def write_rows(path: Path, rows: list[dict]) -> None:
             })
 
 
+def _roster_match_summary(profile: XmlProfile, roster: dict[str, set[str]]) -> dict:
+    matched = 0
+    for row in _instances(profile.path):
+        match = PLAYER_CODE_PARTS.fullmatch(row["code"])
+        if not match:
+            continue
+        jersey, name = match.groups()
+        if normalize_player_name(name) in roster.get(jersey, set()):
+            matched += 1
+    return {
+        "file": profile.path.name,
+        "player_events": profile.player_events,
+        "roster_matched_events": matched,
+        "roster_match_ratio": matched / profile.player_events if profile.player_events else 0.0,
+    }
+
+
 def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) -> tuple[dict, dict | None]:
     scoring_files = [profile for profile in profiles if profile.kind == "scoring_event_xml"]
     if not scoring_files:
@@ -356,20 +374,44 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
             "reason": "missing player-coded Sportscode XML; do not publish COUG scores",
             "candidate_files": [],
         }, None
-    if len(scoring_files) != 1:
-        return {
-            "ready": False,
-            "reason": f"found {len(scoring_files)} scoring candidates; select one exact match export",
-            "candidate_files": [profile.path.name for profile in scoring_files],
-        }, None
     if not roster_path.exists():
         return {
             "ready": False,
             "reason": f"player-coded XML found but roster is missing: {roster_path}",
-            "candidate_files": [scoring_files[0].path.name],
+            "candidate_files": [profile.path.name for profile in scoring_files],
         }, None
 
-    parsed = parse_sportscode(scoring_files[0].path, roster_path=roster_path)
+    roster = load_cofc_roster(roster_path)
+    evaluations = [_roster_match_summary(profile, roster) for profile in scoring_files]
+    viable = [item for item in evaluations if item["roster_matched_events"] > 0]
+    if not viable:
+        return {
+            "ready": False,
+            "reason": "player-coded XML found but no candidate matched the season roster",
+            "candidate_files": [profile.path.name for profile in scoring_files],
+            "candidate_evaluations": evaluations,
+        }, None
+
+    best_quality = max(
+        (item["roster_match_ratio"], item["roster_matched_events"])
+        for item in viable
+    )
+    selected = [
+        item for item in viable
+        if (item["roster_match_ratio"], item["roster_matched_events"]) == best_quality
+    ]
+    if len(selected) != 1:
+        return {
+            "ready": False,
+            "reason": f"found {len(selected)} equally strong roster-matched scoring candidates; staff selection required",
+            "candidate_files": [profile.path.name for profile in scoring_files],
+            "candidate_evaluations": evaluations,
+        }, None
+
+    selected_name = selected[0]["file"]
+    scoring_file = next(profile for profile in scoring_files if profile.path.name == selected_name)
+
+    parsed = parse_sportscode(scoring_file.path, roster_path=roster_path)
     player_events = parsed["player_events"]
     roster_players = {event["name"] for event in player_events}
     status = {
@@ -379,7 +421,9 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
             if player_events
             else "player-coded XML parsed but no events matched the roster"
         ),
-        "candidate_files": [scoring_files[0].path.name],
+        "candidate_files": [profile.path.name for profile in scoring_files],
+        "candidate_evaluations": evaluations,
+        "selected_file": scoring_file.path.name,
         "roster": str(roster_path),
         "roster_players": len(roster_players),
         "scoring_events": len(player_events),

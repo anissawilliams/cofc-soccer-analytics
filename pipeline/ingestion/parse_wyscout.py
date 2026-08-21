@@ -37,11 +37,11 @@ def load_cofc_roster(path: Path) -> dict:
             if row.get("number"):
                 jersey = str(row["number"]).strip()
                 name = row["name"].strip()
-                cofc_roster.setdefault(jersey, set()).add(_normalize_name(name))
+                cofc_roster.setdefault(jersey, set()).add(normalize_player_name(name))
     return cofc_roster
 
 
-def _normalize_name(name: str) -> str:
+def normalize_player_name(name: str) -> str:
     normalized = unicodedata.normalize("NFKD", name)
     return "".join(char for char in normalized if not unicodedata.combining(char)).strip().lower()
 
@@ -123,7 +123,7 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
 
             if cofc_roster is not None:
                 valid_names = cofc_roster.get(jersey)
-                event["roster_match"] = valid_names is not None and _normalize_name(name) in valid_names
+                event["roster_match"] = valid_names is not None and normalize_player_name(name) in valid_names
                 all_player_events.append(event)
                 if not event["roster_match"]:
                     skipped += 1

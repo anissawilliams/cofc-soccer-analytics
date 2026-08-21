@@ -34,6 +34,26 @@ def team_xml(team, rows):
     return "<file><ALL_INSTANCES>" + "".join(instances) + "</ALL_INSTANCES></file>"
 
 
+def scoring_xml(player_codes):
+    markers = [
+        ("First half start", 0),
+        ("First half end", 2700),
+        ("Second half start", 2800),
+        ("Second half end", 5500),
+    ]
+    instances = [
+        f"<instance><code>Offsets</code><start>{start}</start><end>{start}</end>"
+        f"<label><text>{label}</text></label></instance>"
+        for label, start in markers
+    ]
+    instances.extend(
+        f"<instance><code>{code}</code><start>{60 + index}</start><end>{62 + index}</end>"
+        f"<label><text>Plus</text></label></instance>"
+        for index, code in enumerate(player_codes)
+    )
+    return "<root><instances>" + "".join(instances) + "</instances></root>"
+
+
 class MatchIntakeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -150,6 +170,32 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(status["scoring_events"], 1)
         self.assertEqual(status["all_player_events"], 2)
         self.assertEqual([event["name"] for event in parsed["player_events"]], ["J. Jordheim"])
+
+    def test_scoring_candidate_prefers_unique_roster_scoped_export(self):
+        (self.root / "combined.xml").write_text(
+            scoring_xml(["(3) J. Jordheim", "(7) Opponent Player"]),
+            encoding="utf-8",
+        )
+        cofc_path = self.root / "cofc-player-events.xml"
+        cofc_path.write_text(
+            scoring_xml(["(3) J. Jordheim", "(3) J. Jordheim"]),
+            encoding="utf-8",
+        )
+        (self.root / "opponent-player-events.xml").write_text(
+            scoring_xml(["(7) Opponent Player", "(8) Other Opponent"]),
+            encoding="utf-8",
+        )
+        roster = self.root / "roster.csv"
+        roster.write_text("number,name\n3,J. Jordheim\n", encoding="utf-8")
+
+        status, parsed = validate_scoring_candidate(discover_exports(self.root), roster)
+
+        self.assertTrue(status["ready"])
+        self.assertEqual(status["selected_file"], cofc_path.name)
+        self.assertEqual(len(parsed["player_events"]), 2)
+        evaluations = {item["file"]: item for item in status["candidate_evaluations"]}
+        self.assertEqual(evaluations[cofc_path.name]["roster_match_ratio"], 1.0)
+        self.assertEqual(evaluations["opponent-player-events.xml"]["roster_matched_events"], 0)
 
     def test_cli_creates_review_bundle_without_publishing(self):
         output_temp = tempfile.TemporaryDirectory()
