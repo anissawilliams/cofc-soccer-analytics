@@ -231,6 +231,29 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(approval, build_approval_template(saved, output_dir / "2026-08-20_opponent_intake_report.json"))
         self.assertFalse(any(approval["approvals"].values()))
 
+    def test_dry_run_stdout_remains_valid_json_when_scoring_is_ready(self):
+        (self.root / "cofc-player-events.xml").write_text(
+            scoring_xml(["(3) J. Jordheim"]),
+            encoding="utf-8",
+        )
+        roster = self.root / "roster.csv"
+        roster.write_text("number,name\n3,J. Jordheim\n", encoding="utf-8")
+        script = INGESTION_DIR / "prepare_match_intake.py"
+
+        completed = subprocess.run([
+            sys.executable,
+            str(script),
+            "--input-dir", str(self.root),
+            "--season", "2026",
+            "--slug", "2026-08-20_opponent",
+            "--roster", str(roster),
+            "--dry-run",
+        ], check=True, capture_output=True, text=True)
+
+        report = json.loads(completed.stdout)
+        self.assertTrue(report["scoring"]["ready"])
+        self.assertIn("Sportscode:", completed.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
