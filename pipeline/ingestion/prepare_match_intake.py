@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +32,8 @@ PERIOD_LABELS = {
     "Second half start",
     "Second half end",
 }
+EFFECTIVE_TIME_LABEL = "Effective Time"
+COPY_SUFFIX = re.compile(r" \(\d+\)$")
 
 # relation is from the perspective of the team named in the XML <code> field.
 LABEL_MAP = {
@@ -124,6 +127,11 @@ def profile_xml(path: Path) -> XmlProfile:
     period_markers = sum(
         label in PERIOD_LABELS for row in rows for label in row["labels"]
     )
+    labels = {
+        label
+        for row in rows
+        for label in row["labels"]
+    }
     team_codes = Counter(
         row["code"]
         for row in rows
@@ -133,6 +141,12 @@ def profile_xml(path: Path) -> XmlProfile:
 
     if player_events:
         kind = "scoring_event_xml" if period_markers else "player_event_xml"
+    elif (
+        EFFECTIVE_TIME_LABEL in labels
+        and labels <= (PERIOD_LABELS | {EFFECTIVE_TIME_LABEL})
+    ):
+        kind = "effective_time_xml"
+        team = ""
     elif mapped_team_events and team:
         kind = "team_event_xml"
     elif rows and all(not row["labels"] for row in rows):
@@ -154,19 +168,55 @@ def discover_exports(input_dir: Path) -> list[XmlProfile]:
     return [profile_xml(path) for path in sorted(input_dir.rglob("*.xml"))]
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def deduplicate_profiles(
+    profiles: list[XmlProfile],
+) -> tuple[list[XmlProfile], dict[Path, Path]]:
+    """Collapse byte-identical XMLs for parsing while retaining their identities.
+
+    Browsers commonly add `` (1)`` to a second download. The source inventory
+    must preserve both files, but parsing both would create a false team-pair or
+    scoring-candidate ambiguity. Only exact SHA-256 matches are collapsed.
+    """
+    preferred = sorted(
+        profiles,
+        key=lambda profile: (
+            bool(COPY_SUFFIX.search(profile.path.stem)),
+            len(profile.path.name),
+            profile.path.as_posix(),
+        ),
+    )
+    canonical_by_digest: dict[str, XmlProfile] = {}
+    duplicate_of: dict[Path, Path] = {}
+    for profile in preferred:
+        digest = _sha256_file(profile.path)
+        canonical = canonical_by_digest.get(digest)
+        if canonical is None:
+            canonical_by_digest[digest] = profile
+        else:
+            duplicate_of[profile.path] = canonical.path
+
+    canonical_paths = {profile.path for profile in canonical_by_digest.values()}
+    unique = [profile for profile in profiles if profile.path in canonical_paths]
+    return unique, duplicate_of
+
+
 def inventory_source_files(input_dir: Path) -> list[dict]:
     """Create a content-addressed inventory without changing vendor files."""
     inventory = []
     for path in sorted(candidate for candidate in input_dir.rglob("*") if candidate.is_file()):
-        digest = hashlib.sha256()
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
         inventory.append({
             "relative_path": path.relative_to(input_dir).as_posix(),
             "extension": path.suffix.lower(),
             "size_bytes": path.stat().st_size,
-            "sha256": digest.hexdigest(),
+            "sha256": _sha256_file(path),
         })
     return inventory
 
@@ -351,17 +401,22 @@ def write_rows(path: Path, rows: list[dict]) -> None:
 
 def _roster_match_summary(profile: XmlProfile, roster: dict[str, set[str]]) -> dict:
     matched = 0
+    matched_players = set()
     for row in _instances(profile.path):
         match = PLAYER_CODE_PARTS.fullmatch(row["code"])
         if not match:
             continue
         jersey, name = match.groups()
-        if normalize_player_name(name) in roster.get(jersey, set()):
+        normalized_name = normalize_player_name(name)
+        if normalized_name in roster.get(jersey, set()):
             matched += 1
+            matched_players.add((jersey, normalized_name))
     return {
         "file": profile.path.name,
+        "path": profile.path.as_posix(),
         "player_events": profile.player_events,
         "roster_matched_events": matched,
+        "roster_matched_players": len(matched_players),
         "roster_match_ratio": matched / profile.player_events if profile.player_events else 0.0,
     }
 
@@ -382,8 +437,15 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         }, None
 
     roster = load_cofc_roster(roster_path)
-    evaluations = [_roster_match_summary(profile, roster) for profile in scoring_files]
-    viable = [item for item in evaluations if item["roster_matched_events"] > 0]
+    evaluated = [
+        (profile, _roster_match_summary(profile, roster))
+        for profile in scoring_files
+    ]
+    evaluations = [item for _, item in evaluated]
+    viable = [
+        (profile, item) for profile, item in evaluated
+        if item["roster_matched_events"] > 0
+    ]
     if not viable:
         return {
             "ready": False,
@@ -393,12 +455,20 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         }, None
 
     best_quality = max(
-        (item["roster_match_ratio"], item["roster_matched_events"])
-        for item in viable
+        (
+            item["roster_matched_players"],
+            item["roster_match_ratio"],
+            item["roster_matched_events"],
+        )
+        for _, item in viable
     )
     selected = [
-        item for item in viable
-        if (item["roster_match_ratio"], item["roster_matched_events"]) == best_quality
+        (profile, item) for profile, item in viable
+        if (
+            item["roster_matched_players"],
+            item["roster_match_ratio"],
+            item["roster_matched_events"],
+        ) == best_quality
     ]
     if len(selected) != 1:
         return {
@@ -408,8 +478,7 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
             "candidate_evaluations": evaluations,
         }, None
 
-    selected_name = selected[0]["file"]
-    scoring_file = next(profile for profile in scoring_files if profile.path.name == selected_name)
+    scoring_file = selected[0][0]
 
     parsed = parse_sportscode(scoring_file.path, roster_path=roster_path)
     player_events = parsed["player_events"]
@@ -424,6 +493,8 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         "candidate_files": [profile.path.name for profile in scoring_files],
         "candidate_evaluations": evaluations,
         "selected_file": scoring_file.path.name,
+        "selected_path": scoring_file.path.as_posix(),
+        "selection_rule": "most roster-matched players, then match ratio, then matched events",
         "roster": str(roster_path),
         "roster_players": len(roster_players),
         "scoring_events": len(player_events),
@@ -435,8 +506,11 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
 
 def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
     profiles = discover_exports(input_dir)
+    processing_profiles, duplicate_of = deduplicate_profiles(profiles)
     source_manifest = inventory_source_files(input_dir)
-    team_profiles = [profile for profile in profiles if profile.kind == "team_event_xml"]
+    team_profiles = [
+        profile for profile in processing_profiles if profile.kind == "team_event_xml"
+    ]
     distinct_teams = {profile.team for profile in team_profiles if profile.team}
 
     events = []
@@ -451,6 +525,16 @@ def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
         "slug": slug,
         "input_dir": str(input_dir),
         "source_manifest": source_manifest,
+        "duplicate_sources": [
+            {
+                "relative_path": path.relative_to(input_dir).as_posix(),
+                "duplicate_of": canonical.relative_to(input_dir).as_posix(),
+                "sha256": _sha256_file(path),
+            }
+            for path, canonical in sorted(
+                duplicate_of.items(), key=lambda item: item[0].as_posix()
+            )
+        ],
         "scoring": {"ready": False, "reason": "not yet roster-validated"},
         "analytics": {"ready": analytics_ready, "reason": analytics_reason},
         "files": [
@@ -464,6 +548,11 @@ def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
                 "mapped_team_events": profile.mapped_team_events,
                 "period_markers": profile.period_markers,
                 "error": profile.error,
+                "duplicate_of": (
+                    duplicate_of[profile.path].relative_to(input_dir).as_posix()
+                    if profile.path in duplicate_of
+                    else ""
+                ),
             }
             for profile in profiles
         ],
@@ -477,6 +566,7 @@ def build_validation_summary(report: dict) -> dict:
     unknown_xml = [row for row in report.get("files", []) if row.get("kind") == "unknown_xml"]
     unmapped = (report.get("team_event_summary") or {}).get("unmapped_labels") or {}
     source_count = len(report.get("source_manifest") or [])
+    duplicate_count = len(report.get("duplicate_sources") or [])
 
     blocking = []
     attention = []
@@ -488,6 +578,11 @@ def build_validation_summary(report: dict) -> dict:
         attention.append(f"{len(unknown_xml)} XML file(s) need classification.")
     if unmapped:
         attention.append(f"{len(unmapped)} Wyscout label(s) are not mapped yet.")
+    if duplicate_count:
+        attention.append(
+            f"{duplicate_count} byte-identical duplicate source file(s) were retained "
+            "in the archive and ignored for parsing."
+        )
     if not report.get("analytics", {}).get("ready"):
         attention.append(report.get("analytics", {}).get("reason", "Match analytics are not ready."))
     if not report.get("scoring", {}).get("ready"):
@@ -583,8 +678,11 @@ def main() -> None:
     input_dir = args.input_dir.resolve()
     report, events = build_intake_report(input_dir, args.slug)
     profiles = discover_exports(input_dir)
+    processing_profiles, _ = deduplicate_profiles(profiles)
     roster_path = args.roster or (Path(__file__).resolve().parent / f"roster_{args.season}.csv")
-    scoring_status, scoring_data = validate_scoring_candidate(profiles, roster_path.resolve())
+    scoring_status, scoring_data = validate_scoring_candidate(
+        processing_profiles, roster_path.resolve()
+    )
     report["scoring"] = scoring_status
     report["season"] = str(args.season)
     if args.metadata:
@@ -625,7 +723,7 @@ def main() -> None:
         write_rows(output_dir / f"{args.slug}_players.csv", scoring_data["player_events"])
         write_rows(output_dir / f"{args.slug}_all_player_events.csv", scoring_data["all_player_events"])
         write_rows(output_dir / f"{args.slug}_sportscode_team_events.csv", scoring_data["team_events"])
-    print(f"Prepared intake outputs: {output_dir}")
+    print(f"Prepared intake outputs: {output_dir}", file=sys.stderr)
 
 
 if __name__ == "__main__":

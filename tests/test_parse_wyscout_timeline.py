@@ -28,6 +28,22 @@ class WyscoutTimelineTests(unittest.TestCase):
         self.assertEqual(events[1]["half"], 2)
         self.assertEqual(events[1]["match_minute"], 55.0)
 
+    def test_blank_code_half_markers_are_detected_from_labels(self):
+        xml = """<root><instances>
+          <instance><code></code><start>1</start><end>4</end><label><text>First half start</text></label></instance>
+          <instance><code></code><start>3197</start><end>3200</end><label><text>Second half start</text></label></instance>
+          <instance><code>(3) J. Jordheim</code><start>3797</start><end>3799</end><label><text>Plus</text></label></instance>
+        </instances></root>"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "team-scoped-player-events.xml"
+            path.write_text(xml, encoding="utf-8")
+            parsed = parse_sportscode(path)
+
+        self.assertEqual(parsed["halves"]["first_start"], 1.0)
+        self.assertEqual(parsed["halves"]["second_start"], 3197.0)
+        self.assertEqual(parsed["player_events"][0]["half"], 2)
+        self.assertEqual(parsed["player_events"][0]["match_minute"], 55.0)
+
     def test_roster_filter_preserves_non_roster_events_in_raw_stream(self):
         xml = """<root><instances>
           <instance><code>Offsets</code><start>0</start><end>0</end><label><text>First half start</text></label></instance>

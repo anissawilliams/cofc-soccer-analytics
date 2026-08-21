@@ -5,9 +5,17 @@ Handles: sportscode, player events, team events, effective time
 
 import re
 import csv
+import sys
 import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+
+def _log(message: str) -> None:
+    """Keep parser diagnostics separate from machine-readable stdout."""
+    print(message, file=sys.stderr)
+
+
 # ── Roster loading ────────────────────────────────────────────
 
 def load_cofc_roster(path: Path) -> dict:
@@ -76,7 +84,7 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
     cofc_roster = None
     if roster_path and Path(roster_path).exists():
         cofc_roster = load_cofc_roster(Path(roster_path))
-        print(f"  Roster filter: {len(cofc_roster)} CofC players loaded")
+        _log(f"  Roster filter: {len(cofc_roster)} CofC players loaded")
 
     halves        = {}
     player_events = []
@@ -91,13 +99,24 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
         end    = float(inst.find("end").text)   if inst.find("end")   is not None else 0
         labels = [l.text for l in inst.findall(".//text") if l.text]
 
-        # Half offset markers
-        if code == "Offsets":
-            for label in labels:
-                if "First half start"  in label: halves["first_start"]  = start
-                if "First half end"    in label: halves["first_end"]    = end
-                if "Second half start" in label: halves["second_start"] = start
-                if "Second half end"   in label: halves["second_end"]   = end
+        # Half markers are identified by their semantic labels. Some Wyscout
+        # exports use ``Offsets`` as the code; team-scoped player exports can
+        # leave the code blank while retaining the same marker labels.
+        has_half_marker = False
+        for label in labels:
+            if "First half start" in label:
+                halves["first_start"] = start
+                has_half_marker = True
+            if "First half end" in label:
+                halves["first_end"] = end
+                has_half_marker = True
+            if "Second half start" in label:
+                halves["second_start"] = start
+                has_half_marker = True
+            if "Second half end" in label:
+                halves["second_end"] = end
+                has_half_marker = True
+        if code == "Offsets" or has_half_marker:
             continue
 
         # Player events — code matches "(jersey) Name" pattern
@@ -161,8 +180,8 @@ def parse_sportscode(path: Path, roster_path: Path = None) -> dict:
             event["match_minute"] = max(0.0, event["start"] - first_start) / 60.0
 
     filter_msg = f" | {skipped} opponent events filtered out" if cofc_roster else " | ⚠️  no roster filter applied"
-    print(f"  Sportscode: {len(player_events)} player events, "
-          f"{len(team_events)} team events | halves: {halves}{filter_msg}")
+    _log(f"  Sportscode: {len(player_events)} player events, "
+         f"{len(team_events)} team events | halves: {halves}{filter_msg}")
     return {
         "halves":        halves,
         "player_events": player_events,
@@ -188,7 +207,7 @@ def parse_player_xml(path: Path) -> list:
         labels = [l.text for l in inst.findall(".//text") if l.text]
         events.append({"code": code, "start": start, "end": end, "labels": labels})
 
-    print(f"  Player XML: {len(events)} instances")
+    _log(f"  Player XML: {len(events)} instances")
     return events
 
 
@@ -208,7 +227,7 @@ def parse_team_xml(path: Path) -> list:
         labels = [l.text for l in inst.findall(".//text") if l.text]
         events.append({"code": code, "start": start, "end": end, "labels": labels})
 
-    print(f"  Team XML: {len(events)} instances")
+    _log(f"  Team XML: {len(events)} instances")
     return events
 
 
@@ -230,8 +249,8 @@ def parse_effective_time(path: Path) -> dict:
         total_s += dur
         segments.append({"start": start, "end": end, "duration": dur})
 
-    print(f"  Effective time: {len(segments)} segments, "
-          f"{total_s/60:.1f} effective minutes")
+    _log(f"  Effective time: {len(segments)} segments, "
+         f"{total_s/60:.1f} effective minutes")
     return {"segments": segments, "total_seconds": total_s}
 
 
