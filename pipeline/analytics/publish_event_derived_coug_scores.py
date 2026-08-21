@@ -184,15 +184,27 @@ def build_publish_summary(trace: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def resolve_scoring_version_id(client, version: str) -> str:
-    rows = (
-        client.table("scoring_version")
-        .select("id, version")
-        .eq("version", version)
-        .execute()
-        .data
-        or []
-    )
+def resolve_scoring_version_id(client, version: str) -> str | None:
+    """Resolve the normalized scoring version when that migration is live.
+
+    Production still supports the legacy ``weight_version_id`` contract. A
+    missing scoring_version table is therefore a compatibility state, not a
+    reason to block an otherwise reviewed match publication.
+    """
+    try:
+        rows = (
+            client.table("scoring_version")
+            .select("id, version")
+            .eq("version", version)
+            .execute()
+            .data
+            or []
+        )
+    except Exception as exc:
+        message = str(exc)
+        if "PGRST205" in message and "scoring_version" in message:
+            return None
+        raise
     if len(rows) != 1:
         raise ValueError(f"Expected one scoring_version row for '{version}'; found {len(rows)}.")
     return rows[0]["id"]
@@ -216,30 +228,67 @@ def resolve_legacy_weight_id(client, version: str) -> str:
 
 def score_payloads(
     summary: pd.DataFrame,
-    scoring_version_id: str,
+    scoring_version_id: str | None,
     legacy_weight_id: str,
 ) -> list[dict[str, object]]:
     calculated_at = datetime.now(timezone.utc).isoformat()
     payloads: list[dict[str, object]] = []
     for _, row in summary.iterrows():
-        payloads.append(
-            {
-                "athlete_id": row["athlete_id"],
-                "session_id": row["session_id"],
-                "scoring_version_id": scoring_version_id,
-                "weight_version_id": legacy_weight_id,
-                "aset_score": round(float(row["aset_score"]), 4),
-                "peak_score": round(float(row["peak_score"]), 4),
-                "set_piece_score": round(float(row["set_piece_score"]), 4),
-                "positional_score": round(float(row["positional_score"]), 4),
-                "load_score": round(float(row["load_score"]), 4),
-                "total_score": round(float(row["total_score"]), 4),
-                "score_type": "match",
-                "data_source_path": "xml",
-                "calculated_at": calculated_at,
-            }
-        )
+        payload = {
+            "athlete_id": row["athlete_id"],
+            "session_id": row["session_id"],
+            "weight_version_id": legacy_weight_id,
+            "aset_score": round(float(row["aset_score"]), 4),
+            "peak_score": round(float(row["peak_score"]), 4),
+            "set_piece_score": round(float(row["set_piece_score"]), 4),
+            "positional_score": round(float(row["positional_score"]), 4),
+            "load_score": round(float(row["load_score"]), 4),
+            "total_score": round(float(row["total_score"]), 4),
+            "score_type": "match",
+            "data_source_path": "xml",
+            "calculated_at": calculated_at,
+        }
+        if scoring_version_id is not None:
+            payload["scoring_version_id"] = scoring_version_id
+        payloads.append(payload)
     return payloads
+
+
+def publish_score_payloads(client, payloads: list[dict[str, object]], scoring_version_id: str | None) -> None:
+    """Publish idempotently against either scoring-version schema.
+
+    The normalized schema has a unique constraint suitable for a bulk upsert.
+    The production compatibility schema does not, so it must explicitly
+    resolve each legacy score identity before updating or inserting.
+    """
+    if scoring_version_id is not None:
+        client.table("coug_score").upsert(
+            payloads,
+            on_conflict="athlete_id,session_id,scoring_version_id,score_type",
+        ).execute()
+        return
+
+    for payload in payloads:
+        existing = (
+            client.table("coug_score")
+            .select("id")
+            .eq("athlete_id", payload["athlete_id"])
+            .eq("session_id", payload["session_id"])
+            .eq("weight_version_id", payload["weight_version_id"])
+            .eq("score_type", payload["score_type"])
+            .execute()
+            .data
+            or []
+        )
+        if len(existing) > 1:
+            raise ValueError(
+                "Multiple legacy COUG score rows exist for one player/session/version/type; "
+                "refusing an ambiguous update."
+            )
+        if existing:
+            client.table("coug_score").update(payload).eq("id", existing[0]["id"]).execute()
+        else:
+            client.table("coug_score").insert(payload).execute()
 
 
 def write_review_csv(summary: pd.DataFrame, season: str, slug: str, output_root: Path) -> Path:
@@ -291,10 +340,7 @@ def main() -> None:
     scoring_version_id = resolve_scoring_version_id(client, args.weight_version)
     legacy_weight_id = resolve_legacy_weight_id(client, args.weight_version)
     payloads = score_payloads(summary, scoring_version_id, legacy_weight_id)
-    client.table("coug_score").upsert(
-        payloads,
-        on_conflict="athlete_id,session_id,scoring_version_id,score_type",
-    ).execute()
+    publish_score_payloads(client, payloads, scoring_version_id)
     print(f"Published {len(payloads)} event-derived COUG score row(s) for {args.slug}.")
 
 

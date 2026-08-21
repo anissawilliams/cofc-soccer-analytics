@@ -4,8 +4,8 @@ Run fixture-based checks for candidate PEAK scoring behavior.
 
 The config validator checks that the rule table is well-formed. This script
 checks that the scoring code applies the most important PEAK rules correctly:
-Goal, Assist, Punish proxy, Advance threshold, contextual Shots, and excluded
-labels.
+Goal, on-field goal credit, Assist, Punish proxy, Advance threshold,
+contextual Shots, and excluded labels.
 
 Examples:
     python pipeline/analytics/check_peak_scoring_fixture.py
@@ -54,11 +54,13 @@ def make_event(raw_metric_name: str, raw_value: float = 1.0, context: dict | Non
 def build_fixture_trace() -> pd.DataFrame:
     events = [
         make_event("Goal"),
+        make_event("Goal (on field)"),
         make_event("Assist"),
         make_event("Opportunity"),
         make_event("Shots"),
         make_event("Shots", context={"all_labels": ["Opportunity"]}),
         make_event("Free kick shot"),
+        make_event("Free kick goal"),
     ]
     events.extend(make_event("Smart pass") for _ in range(10))
     trace = pd.DataFrame(events)
@@ -88,10 +90,12 @@ def main() -> None:
     actions_by_label = dict(zip(by_label["raw_metric_name"], by_label["advance_actions"]))
 
     assert_close(score_by_label["Goal"], 3.0, "Goal scorer PEAK")
+    assert_close(score_by_label["Goal (on field)"], 1.0, "On-field goal PEAK")
     assert_close(score_by_label["Assist"], 2.0, "Assist PEAK")
     assert_close(score_by_label["Opportunity"], 0.2, "Punish Opportunity PEAK")
     assert_close(score_by_label["Shots"], 0.2, "Only contextual Shots should score as Punish")
     assert_close(score_by_label["Free kick shot"], 0.0, "Free kick shot should be excluded")
+    assert_close(score_by_label["Free kick goal"], 0.0, "Free kick context should be excluded")
     assert_close(score_by_label["Smart pass"], 0.0, "Advance should not score per event")
     assert_close(actions_by_label["Smart pass"], 10.0, "Smart pass Advance actions")
 
@@ -99,10 +103,10 @@ def main() -> None:
     if len(summary) != 1:
         raise AssertionError(f"Fixture should summarize to one player row, got {len(summary)}")
     row = summary.iloc[0]
-    assert_close(row["candidate_base_peak_score"], 5.4, "Base candidate PEAK before Advance threshold")
+    assert_close(row["candidate_base_peak_score"], 6.4, "Base candidate PEAK before Advance threshold")
     assert_close(row["candidate_advance_actions"], 10.0, "Advance action count")
     assert_close(row["candidate_advance_score"], 0.5, "Advance threshold score")
-    assert_close(row["candidate_peak_score"], 5.9, "Total candidate PEAK")
+    assert_close(row["candidate_peak_score"], 6.9, "Total candidate PEAK")
 
     print("PEAK scoring fixture: all checks passed")
     print(f"Candidate PEAK total: {row['candidate_peak_score']:.1f}")

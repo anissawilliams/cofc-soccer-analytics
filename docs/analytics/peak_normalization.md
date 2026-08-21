@@ -44,6 +44,7 @@ Important columns:
 | --- | --- | --- |
 | `Goal` | Goal (scorer) | 3.0 per event |
 | `Goal (scorer)` | Goal (scorer) | 3.0 per event |
+| `Goal (on field)` | Goal (on field) | 1.0 per reviewed on-field athlete except the scorer |
 | `Assists` | Assist | 2.0 per event |
 | `Assist` | Assist | 2.0 per event |
 
@@ -73,9 +74,10 @@ floor(successful_advance_action_count / 10) * 0.5
 
 ### Set Piece / Provisional
 
-`Free kick goal` remains provisional until set-piece double-count policy is
-confirmed. It may belong only in Set Piece scoring, or it may also receive
-standard Goal credit depending on coach/database definitions.
+`Free kick goal` is excluded because the Wyscout label is free-kick context,
+not proof of a scored goal. Any future set-piece credit requires corroboration
+with an actual team goal event. Only then should the set-piece bonus and
+standard scorer credit be evaluated under the coach-approved policy.
 
 `Free kick shot` is excluded for now because no confirmed PEAK metric/weight
 exists for it.

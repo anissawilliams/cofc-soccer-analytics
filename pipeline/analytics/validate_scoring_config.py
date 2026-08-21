@@ -66,7 +66,7 @@ ALLOWED_IMPLEMENTATION_STATUSES = {
 }
 ALLOWED_BUCKETS = {"aset", "peak", "set_piece", "positional", ""}
 ALLOWED_MAPPING_STATUSES = {"reviewed_candidate", "needs_coach_review", "unmapped"}
-NORMALIZED_INPUT_ALIASES = {"assist", "goal (scorer)"}
+NORMALIZED_INPUT_ALIASES = {"assist", "goal (scorer)", "goal (on field)"}
 
 
 @dataclass

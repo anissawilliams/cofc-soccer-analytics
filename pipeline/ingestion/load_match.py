@@ -583,7 +583,6 @@ WYSCOUT_SCORABLE_LABELS = {
     "Opportunity": "PEAK",
     # Set Piece
     "Saves": "ASET",
-    "Free kick goal": "PEAK",
     "Free kick shot": "PEAK",
     # Positional
     "Aerial duels": "ASET",
@@ -601,7 +600,7 @@ NON_MINUS = {
     "Defensive duel", "1VS1", "Pressing duel", "Loose ball duel",
 }
 ALWAYS_COUNT = {
-    "Goal", "Assists", "Vol_Interception", "Saves", "Free kick goal",
+    "Goal", "Assists", "Vol_Interception", "Saves",
     "Aerial duels", "Cross", "Shots",
 }
 
@@ -609,7 +608,7 @@ ALWAYS_COUNT = {
 CB_ONLY = {"Aerial duels"}
 WB_ONLY = {"Cross"}
 FWD_ONLY = {"Shots"}
-GK_SKIP = {"Goal", "Free kick goal"}
+GK_SKIP = {"Goal"}
 GK_ONLY = {"Saves"}
 
 CB_POS  = {"CB"}

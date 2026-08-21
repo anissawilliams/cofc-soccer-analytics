@@ -18,6 +18,10 @@ from pipeline.ingestion.load_match import (
 
 
 class MetricScoringRuleTests(unittest.TestCase):
+    def test_free_kick_context_is_not_treated_as_a_scored_goal(self):
+        self.assertNotIn("Free kick goal", WYSCOUT_SCORABLE_LABELS)
+        self.assertNotIn("Free kick goal", _legacy_wyscout_scoring_rules())
+
     def test_legacy_rule_adapter_covers_the_exact_existing_taxonomy(self):
         rules = _legacy_wyscout_scoring_rules()
 
