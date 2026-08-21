@@ -108,6 +108,16 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(flow["bins"][11]["away"], 5.0)
         self.assertEqual(flow["goals"], [{"minute": 55.0, "team": "Opponent FC"}])
 
+    def test_match_flow_groups_vendor_clock_overrun_into_90_plus(self):
+        events, summary = merge_team_event_pair([self.cofc, self.opponent], "2026-08-20_opponent")
+        events.append({"match_minute": 104.0, "event_type": "shot", "team": "Charleston Cougars"})
+
+        flow = build_match_flow_snapshot(events, summary, "2026-08-20_opponent")
+
+        self.assertEqual(len(flow["bins"]), 19)
+        self.assertEqual(flow["bins"][-1]["start"], 90)
+        self.assertEqual(flow["bins"][-1]["home"], 2.0)
+
     def test_intake_separates_analytics_from_scoring_readiness(self):
         report, events = build_intake_report(self.root, "2026-08-20_opponent")
         self.assertTrue(report["analytics"]["ready"])

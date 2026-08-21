@@ -18,6 +18,15 @@ class MatchFlowTests(unittest.TestCase):
         self.assertEqual(len(flow["bins"]), 20)
         self.assertEqual(flow["coverage"]["canonical_events"], 265)
 
+    def test_tracked_davidson_snapshot_has_reviewed_two_team_pressure(self):
+        with patch.dict(os.environ, {"COFC_MATCH_FLOW_DIR": str(DEFAULT_MATCH_FLOW_DIR)}, clear=False):
+            flow = get_match_flow("2026-08-20")
+        self.assertTrue(flow["available"])
+        self.assertEqual(flow["home_team"], "Charleston Cougars")
+        self.assertEqual(flow["away_team"], "Davidson Wildcats")
+        self.assertEqual(len(flow["bins"]), 19)
+        self.assertEqual(flow["coverage"]["canonical_events"], 240)
+
     def test_missing_snapshot_is_explicit(self):
         with tempfile.TemporaryDirectory() as root:
             with patch.dict(os.environ, {"COFC_MATCH_FLOW_DIR": root}, clear=False):

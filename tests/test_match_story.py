@@ -1,9 +1,18 @@
 import unittest
+from pathlib import Path
 
 from db import _match_story_peak_coverage
 
 
 class MatchStoryCoverageTests(unittest.TestCase):
+    def test_match_story_reads_the_canonical_weight_version_relationship(self):
+        source = (Path(__file__).resolve().parents[1] / "db.py").read_text(encoding="utf-8")
+        self.assertIn(
+            '.select("peak_score, score_type, weight_version:weight_version_id(version)")',
+            source,
+        )
+        self.assertNotIn("scoring_version:scoring_version_id(version)", source)
+
     def test_partial_timed_peak_reports_honest_gap(self):
         self.assertEqual(
             _match_story_peak_coverage(3.4, 4.0),
