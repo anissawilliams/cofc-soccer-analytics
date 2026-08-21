@@ -73,11 +73,12 @@ function strongestFlowWindow(flow, events) {
 function OptaMatchFlow({ flow, selectedWindow, onSelectWindow }) {
   const bins = flow.bins || [];
   const width = 960;
-  const height = 286;
-  const pad = { left: 50, right: 16, top: 32, bottom: 34 };
-  const middle = 142;
-  const halfHeight = 92;
-  const endMinute = Math.max(90, ...bins.map(item => Number(item.start || 0) + Number(flow.window_minutes || 5)));
+  const height = 320;
+  const pad = { left: 58, right: 22, top: 42, bottom: 42 };
+  const middle = 160;
+  const halfHeight = 98;
+  const hasStoppage = bins.some(item => Number(item.start) >= 90);
+  const endMinute = hasStoppage ? 95 : 90;
   const plotWidth = width - pad.left - pad.right;
   const binWidth = bins.length ? plotWidth / bins.length : plotWidth;
   const pressureMax = Math.max(1, ...bins.flatMap(item => [Number(item.home || 0), Number(item.away || 0)]));
@@ -85,35 +86,40 @@ function OptaMatchFlow({ flow, selectedWindow, onSelectWindow }) {
   const windowMinutes = Number(flow.window_minutes || 5);
 
   return (
-    <div style={{ marginBottom: 22 }}>
+    <div style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ fontSize: 17, margin: 0 }}>Match Flow</h2>
-          <p style={{ color: C.muted, fontSize: 11, margin: '5px 0 0' }}>
-            Five-minute event-pressure windows from the paired canonical team stream
+          <div style={{ display: 'flex', gap: 9, alignItems: 'center', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 19, margin: 0 }}>Match Flow</h2>
+            <span style={{ color: C.bg, background: C.gold, fontSize: 9, fontWeight: 900, letterSpacing: 1.2, padding: '3px 6px' }}>FULL TEAM EVENT FLOW</span>
+          </div>
+          <p style={{ color: C.muted, fontSize: 12, margin: '6px 0 0' }}>
+            Five-minute pressure windows from both teams · goals and major momentum swings annotated
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 14, color: C.muted, fontSize: 11 }}>
+        <div style={{ display: 'flex', gap: 16, color: C.text, fontSize: 12, fontWeight: 700 }}>
           <span><i style={{ display: 'inline-block', width: 9, height: 9, background: C.gold, marginRight: 5 }} />{flow.home_team}</span>
           <span><i style={{ display: 'inline-block', width: 9, height: 9, background: C.opponent, marginRight: 5 }} />{flow.away_team}</span>
         </div>
       </div>
 
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${flow.home_team} and ${flow.away_team} match pressure by five-minute window`} style={{ width: '100%', display: 'block', background: '#120a09', border: `1px solid ${C.border}` }}>
-        <text x={pad.left} y={18} fill={C.gold} fontSize="10" fontWeight="800" letterSpacing="1.2">{flow.home_team.toUpperCase()} PRESSURE</text>
-        <text x={pad.left} y={height - 8} fill={C.opponent} fontSize="10" fontWeight="800" letterSpacing="1.2">{flow.away_team.toUpperCase()} PRESSURE</text>
-        {[0, 15, 30, 45, 60, 75, 90].filter(minute => minute <= endMinute).map(minute => {
+      <div style={{ overflowX: 'auto', border: `1px solid ${C.border}`, background: 'linear-gradient(180deg, #17100f 0%, #100908 100%)' }}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${flow.home_team} and ${flow.away_team} match pressure by five-minute window`} style={{ width: '100%', minWidth: 720, display: 'block' }}>
+        <text x={pad.left} y={23} fill={C.gold} fontSize="12" fontWeight="900" letterSpacing="1.4">{flow.home_team.toUpperCase()} PRESSURE</text>
+        <text x={pad.left} y={height - 11} fill={C.opponent} fontSize="12" fontWeight="900" letterSpacing="1.4">{flow.away_team.toUpperCase()} PRESSURE</text>
+        {[0, 15, 30, 45, 60, 75, 90].map(minute => {
           const x = pad.left + (minute / endMinute) * plotWidth;
           return <g key={minute}>
-            <line x1={x} x2={x} y1={pad.top} y2={height - pad.bottom} stroke={C.border} strokeWidth="1" opacity="0.55" />
-            <text x={x} y={middle + 4} textAnchor="middle" fill={C.muted} fontSize="10">{minute}</text>
+            <line x1={x} x2={x} y1={pad.top} y2={height - pad.bottom} stroke={minute === 45 ? C.gold : C.border} strokeWidth={minute === 45 ? 1.5 : 1} opacity={minute === 45 ? 0.48 : 0.55} />
+            <text x={x} y={middle + 5} textAnchor="middle" fill={minute === 45 ? C.gold : C.muted} fontSize="12" fontWeight={minute === 45 ? 800 : 600}>{minute}′</text>
           </g>;
         })}
-        <line x1={pad.left} x2={width - pad.right} y1={middle} y2={middle} stroke="#7f665b" strokeWidth="1" />
+        {hasStoppage && <text x={width - pad.right} y={middle + 5} textAnchor="end" fill={C.muted} fontSize="11" fontWeight="700">90+</text>}
+        <line x1={pad.left} x2={width - pad.right} y1={middle} y2={middle} stroke="#a78d7f" strokeWidth="1.25" />
 
         {bins.map((item, index) => {
           const x = pad.left + index * binWidth + 1;
-          const barWidth = Math.max(3, binWidth - 3);
+          const barWidth = Math.max(5, binWidth - 5);
           const homeHeight = (Number(item.home || 0) / pressureMax) * halfHeight;
           const awayHeight = (Number(item.away || 0) / pressureMax) * halfHeight;
           const isSelected = Number(item.start) === Number(selected?.start);
@@ -122,9 +128,9 @@ function OptaMatchFlow({ flow, selectedWindow, onSelectWindow }) {
             if (event.key === 'Enter' || event.key === ' ') onSelectWindow(Number(item.start));
           }} role="button" tabIndex="0" aria-label={label} style={{ cursor: 'pointer', opacity: isSelected ? 1 : 0.72 }}>
             <title>{label}</title>
-            {isSelected && <rect x={x - 2} y={pad.top} width={barWidth + 4} height={height - pad.top - pad.bottom} fill={C.gold} opacity="0.07" />}
-            <rect x={x} y={middle - homeHeight} width={barWidth} height={homeHeight} fill={C.gold} rx="1" />
-            <rect x={x} y={middle + 1} width={barWidth} height={awayHeight} fill={C.opponent} rx="1" />
+            {isSelected && <rect x={x - 3} y={pad.top} width={barWidth + 6} height={height - pad.top - pad.bottom} fill={C.gold} opacity="0.1" />}
+            <rect x={x} y={middle - homeHeight} width={barWidth} height={homeHeight} fill={C.gold} rx="2" opacity="0.94" />
+            <rect x={x} y={middle + 1} width={barWidth} height={awayHeight} fill={C.opponent} rx="2" opacity="0.94" />
           </g>;
         })}
 
@@ -134,12 +140,13 @@ function OptaMatchFlow({ flow, selectedWindow, onSelectWindow }) {
           return <g key={`${goal.minute}-${index}`}>
             <line x1={x} x2={x} y1={pad.top} y2={height - pad.bottom} stroke={C.text} strokeDasharray="3 4" opacity="0.45" />
             <circle cx={x} cy={isHome ? middle - 7 : middle + 7} r="4" fill={C.text} />
-            <text x={x + (Number(goal.minute) > 90 ? -5 : 5)} y={isHome ? pad.top - 6 : height - pad.bottom + 16} textAnchor={Number(goal.minute) > 90 ? 'end' : 'start'} fill={C.text} fontSize="9">
+            <text x={x + (Number(goal.minute) > 84 ? -7 : 7)} y={isHome ? pad.top - 8 : height - pad.bottom + 19} textAnchor={Number(goal.minute) > 84 ? 'end' : 'start'} fill={C.text} fontSize="11" fontWeight="800">
               {minuteLabel(goal.minute)} GOAL
             </text>
           </g>;
         })}
       </svg>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr) auto', gap: 14, alignItems: 'center', padding: '12px 4px 0', borderTop: `1px solid ${C.border}`, marginTop: 10 }}>
         <div style={{ color: C.gold, fontSize: 20, fontWeight: 900 }}>
@@ -187,9 +194,12 @@ function MatchPulse({ events, endMinute, selectedWindow, onSelectWindow }) {
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ fontSize: 17, margin: 0 }}>Match Flow</h2>
-          <p style={{ color: C.muted, fontSize: 11, margin: '5px 0 0' }}>
-            Five-minute COUG-weighted windows · shared scale · attacking actions above · defensive actions below
+          <div style={{ display: 'flex', gap: 9, alignItems: 'center', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 19, margin: 0 }}>COUG Scoring Pulse</h2>
+            <span style={{ color: C.text, border: `1px solid ${C.aset}`, fontSize: 9, fontWeight: 900, letterSpacing: 1.2, padding: '3px 6px' }}>PARTIAL VIEW</span>
+          </div>
+          <p style={{ color: C.muted, fontSize: 12, margin: '6px 0 0', maxWidth: 620 }}>
+            Full two-team Match Flow is pending. This view shows only score-bearing COUG events, so empty windows do not mean the match was inactive.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 14, color: C.muted, fontSize: 11 }}>
@@ -198,7 +208,8 @@ function MatchPulse({ events, endMinute, selectedWindow, onSelectWindow }) {
         </div>
       </div>
 
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="COFC attacking and defensive contribution by five-minute window" style={{ width: '100%', display: 'block', background: '#120a09', border: `1px solid ${C.border}` }}>
+      <div style={{ overflowX: 'auto', border: `1px solid ${C.border}` }}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="COFC attacking and defensive contribution by five-minute window" style={{ width: '100%', minWidth: 720, display: 'block', background: '#120a09' }}>
         <text x={pad.left} y={18} fill={C.gold} fontSize="10" fontWeight="800" letterSpacing="1.2">ATTACKING CONTRIBUTION</text>
         <text x={pad.left} y={height - 8} fill={C.aset} fontSize="10" fontWeight="800" letterSpacing="1.2">DEFENSIVE CONTRIBUTION</text>
         {[0, 15, 30, 45, 60, 75, 90].filter(minute => minute <= endMinute).map(minute => {
@@ -236,6 +247,7 @@ function MatchPulse({ events, endMinute, selectedWindow, onSelectWindow }) {
           </g>;
         })}
       </svg>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr) auto', gap: 14, alignItems: 'center', padding: '12px 4px 0', borderTop: `1px solid ${C.border}`, marginTop: 10 }}>
         <div style={{ color: C.gold, fontSize: 20, fontWeight: 900 }}>

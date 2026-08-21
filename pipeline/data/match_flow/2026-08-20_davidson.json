@@ -1,0 +1,151 @@
+{
+  "away_team": "Davidson Wildcats",
+  "bins": [
+    {
+      "away": 2.19,
+      "home": 11.4,
+      "note": "Away goalkeeper distribution \u00d73 \u00b7 Away free kick \u00d72 \u00b7 Home scoring opportunity \u00d72",
+      "start": 0
+    },
+    {
+      "away": 0.68,
+      "home": 11.88,
+      "note": "Away throw in \u00d72 \u00b7 Away free kick \u00d71 \u00b7 Away goalkeeper distribution \u00d71",
+      "start": 5
+    },
+    {
+      "away": 5.56,
+      "home": 0.66,
+      "note": "Away goalkeeper distribution \u00d72 \u00b7 Home goalkeeper distribution \u00d72 \u00b7 Home throw in \u00d72",
+      "start": 10
+    },
+    {
+      "away": 1.43,
+      "home": 0.85,
+      "note": "Away throw in \u00d73 \u00b7 Home free kick \u00d72 \u00b7 Away attacking phase \u00d71",
+      "start": 15
+    },
+    {
+      "away": 1.23,
+      "home": 0.26,
+      "note": "Away attacking phase \u00d73 \u00b7 Away cross \u00d72 \u00b7 Home goalkeeper distribution \u00d72",
+      "start": 20
+    },
+    {
+      "away": 0.6,
+      "home": 0.08,
+      "note": "Away cross \u00d72 \u00b7 Away throw in \u00d71 \u00b7 Home goalkeeper distribution \u00d71",
+      "start": 25
+    },
+    {
+      "away": 0.39,
+      "home": 0.71,
+      "note": "Away goalkeeper distribution \u00d73 \u00b7 Home attacking phase \u00d73 \u00b7 Home goalkeeper distribution \u00d72",
+      "start": 30
+    },
+    {
+      "away": 0.08,
+      "home": 0.53,
+      "note": "Away goalkeeper distribution \u00d71 \u00b7 Home attacking phase \u00d71 \u00b7 Home free kick \u00d71",
+      "start": 35
+    },
+    {
+      "away": 1.03,
+      "home": 0.81,
+      "note": "Home attacking phase \u00d73 \u00b7 Away attacking phase \u00d72 \u00b7 Away throw in \u00d72",
+      "start": 40
+    },
+    {
+      "away": 15.11,
+      "home": 1.3,
+      "note": "Home attacking phase \u00d75 \u00b7 Home goalkeeper distribution \u00d75 \u00b7 Away scoring opportunity \u00d74",
+      "start": 45
+    },
+    {
+      "away": 13.25,
+      "home": 0.97,
+      "note": "Home goalkeeper distribution \u00d74 \u00b7 Away shot \u00d72 \u00b7 Away throw in \u00d72",
+      "start": 50
+    },
+    {
+      "away": 0.68,
+      "home": 1.33,
+      "note": "Home free kick \u00d73 \u00b7 Away throw in \u00d72 \u00b7 Away free kick \u00d71",
+      "start": 55
+    },
+    {
+      "away": 2.15,
+      "home": 0.29,
+      "note": "Home goalkeeper distribution \u00d73 \u00b7 Away attacking phase \u00d71 \u00b7 Away shot \u00d71",
+      "start": 60
+    },
+    {
+      "away": 8.56,
+      "home": 0.18,
+      "note": "Away goalkeeper distribution \u00d72 \u00b7 Away scoring opportunity \u00d72 \u00b7 Away attacking phase \u00d71",
+      "start": 65
+    },
+    {
+      "away": 1.06,
+      "home": 3.75,
+      "note": "Away goalkeeper distribution \u00d72 \u00b7 Away throw in \u00d72 \u00b7 Home attacking phase \u00d72",
+      "start": 70
+    },
+    {
+      "away": 0.31,
+      "home": 0.58,
+      "note": "Away goalkeeper distribution \u00d72 \u00b7 Away attacking phase \u00d71 \u00b7 Away throw in \u00d71",
+      "start": 75
+    },
+    {
+      "away": 1.66,
+      "home": 0.2,
+      "note": "Away attacking phase \u00d72 \u00b7 Away cross \u00d72 \u00b7 Away free kick \u00d72",
+      "start": 80
+    },
+    {
+      "away": 0.68,
+      "home": 0.28,
+      "note": "Away throw in \u00d72 \u00b7 Home throw in \u00d72 \u00b7 Away free kick \u00d71",
+      "start": 85
+    },
+    {
+      "away": 12.71,
+      "home": 12.81,
+      "note": "Home goalkeeper distribution \u00d77 \u00b7 Away attacking phase \u00d74 \u00b7 Away throw in \u00d74",
+      "start": 90
+    }
+  ],
+  "coverage": {
+    "canonical_events": 240,
+    "mirrored_events": 233,
+    "unmapped_labels": 0
+  },
+  "goals": [
+    {
+      "minute": 8.583,
+      "team": "Charleston Cougars"
+    },
+    {
+      "minute": 51.8,
+      "team": "Davidson Wildcats"
+    }
+  ],
+  "home_team": "Charleston Cougars",
+  "pressure_weights": {
+    "attacking_phase": 0.05,
+    "corner": 1.0,
+    "counter_attack": 1.5,
+    "cross": 0.25,
+    "direct_free_kick": 0.8,
+    "free_kick": 0.4,
+    "goal": 5.0,
+    "goalkeeper_distribution": 0.08,
+    "scoring_opportunity": 3.0,
+    "shot": 2.0,
+    "throw_in": 0.1
+  },
+  "slug": "2026-08-20_davidson",
+  "version": "canonical_team_events_v1",
+  "window_minutes": 5
+}

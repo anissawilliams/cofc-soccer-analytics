@@ -946,7 +946,7 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
         try:
             score_rows = (
                 client.table("coug_score")
-                .select("peak_score, score_type, scoring_version:scoring_version_id(version)")
+                .select("peak_score, score_type, weight_version:weight_version_id(version)")
                 .eq("session_id", session_id)
                 .execute()
                 .data
@@ -956,7 +956,7 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
                 float(row.get("peak_score") or 0)
                 for row in score_rows
                 if row.get("score_type") == "match"
-                and (row.get("scoring_version") or {}).get("version") == weight_version
+                and (row.get("weight_version") or {}).get("version") == weight_version
             ), 4)
         except Exception as exc:
             # Coverage is supplemental. A missing score rollup must not hide the

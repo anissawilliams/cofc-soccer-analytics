@@ -322,8 +322,12 @@ def build_match_flow_snapshot(events: list[dict], summary: dict, slug: str) -> d
     if len(teams) != 2:
         raise ValueError(f"Match Flow requires two teams; found {teams}")
 
-    end_minute = max(90.0, max((float(event.get("match_minute") or 0) for event in events), default=90.0))
-    bin_count = max(18, math.ceil(end_minute / 5))
+    # Regulation is eighteen five-minute windows. Vendor video clocks can run
+    # beyond 90 because of stoppage time or padding around the half markers;
+    # keep that evidence in one honest 90+ window instead of stretching the
+    # visual timeline to an invented 100- or 105-minute match.
+    has_stoppage = any(float(event.get("match_minute") or 0) >= 90 for event in events)
+    bin_count = 19 if has_stoppage else 18
     bins = [
         {"start": index * 5, "home": 0.0, "away": 0.0, "event_counts": {}}
         for index in range(bin_count)
@@ -332,7 +336,7 @@ def build_match_flow_snapshot(events: list[dict], summary: dict, slug: str) -> d
 
     for event in events:
         minute = max(0.0, float(event.get("match_minute") or 0))
-        index = min(bin_count - 1, int(minute // 5))
+        index = 18 if minute >= 90 else min(17, int(minute // 5))
         event_type = event.get("event_type") or "unknown"
         weight = MATCH_FLOW_PRESSURE_WEIGHTS.get(event_type, 0.0)
         side = "home" if event.get("team") == teams[0] else "away"
