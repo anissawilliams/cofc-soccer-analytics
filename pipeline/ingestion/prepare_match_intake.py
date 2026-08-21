@@ -34,6 +34,13 @@ PERIOD_LABELS = {
 }
 EFFECTIVE_TIME_LABEL = "Effective Time"
 COPY_SUFFIX = re.compile(r" \(\d+\)$")
+COUG_SCORING_LABELS = {
+    "Vol_Interception", "Tackles", "Clearances", "Anticipated",
+    "Anticipation", "Pressing duel", "Loose ball duel", "Defensive duel",
+    "1VS1", "Goal", "Assists", "Key passes", "Smart pass",
+    "Smart passes", "Opportunity", "Saves", "Free kick goal",
+    "Free kick shot", "Aerial duels", "Cross", "Shots",
+}
 
 # relation is from the perspective of the team named in the XML <code> field.
 LABEL_MAP = {
@@ -402,6 +409,7 @@ def write_rows(path: Path, rows: list[dict]) -> None:
 def _roster_match_summary(profile: XmlProfile, roster: dict[str, set[str]]) -> dict:
     matched = 0
     matched_players = set()
+    scoring_labels = Counter()
     for row in _instances(profile.path):
         match = PLAYER_CODE_PARTS.fullmatch(row["code"])
         if not match:
@@ -411,6 +419,9 @@ def _roster_match_summary(profile: XmlProfile, roster: dict[str, set[str]]) -> d
         if normalized_name in roster.get(jersey, set()):
             matched += 1
             matched_players.add((jersey, normalized_name))
+            scoring_labels.update(
+                label for label in row["labels"] if label in COUG_SCORING_LABELS
+            )
     return {
         "file": profile.path.name,
         "path": profile.path.as_posix(),
@@ -418,6 +429,8 @@ def _roster_match_summary(profile: XmlProfile, roster: dict[str, set[str]]) -> d
         "roster_matched_events": matched,
         "roster_matched_players": len(matched_players),
         "roster_match_ratio": matched / profile.player_events if profile.player_events else 0.0,
+        "scoring_label_types": len(scoring_labels),
+        "scoring_label_events": sum(scoring_labels.values()),
     }
 
 
@@ -457,6 +470,8 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
     best_quality = max(
         (
             item["roster_matched_players"],
+            item["scoring_label_types"],
+            item["scoring_label_events"],
             item["roster_match_ratio"],
             item["roster_matched_events"],
         )
@@ -466,6 +481,8 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         (profile, item) for profile, item in viable
         if (
             item["roster_matched_players"],
+            item["scoring_label_types"],
+            item["scoring_label_events"],
             item["roster_match_ratio"],
             item["roster_matched_events"],
         ) == best_quality
@@ -494,7 +511,10 @@ def validate_scoring_candidate(profiles: list[XmlProfile], roster_path: Path) ->
         "candidate_evaluations": evaluations,
         "selected_file": scoring_file.path.name,
         "selected_path": scoring_file.path.as_posix(),
-        "selection_rule": "most roster-matched players, then match ratio, then matched events",
+        "selection_rule": (
+            "most roster-matched players, then COUG scoring-label coverage, "
+            "then match ratio and matched events"
+        ),
         "roster": str(roster_path),
         "roster_players": len(roster_players),
         "scoring_events": len(player_events),
