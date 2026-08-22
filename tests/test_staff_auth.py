@@ -62,6 +62,8 @@ class StaffAuthTests(unittest.TestCase):
                 "/api/match-story/session-1",
                 "/api/shot-map/session-1",
                 "/api/player-coug-trace/player-1?season=2026",
+                "/api/staff/session-events",
+                "/api/staff/session-events/options",
             ]
             for path in protected_paths:
                 with self.subTest(path=path):

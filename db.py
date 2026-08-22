@@ -68,6 +68,185 @@ def get_player_by_id(player_id: str) -> dict | None:
         return None
 
 
+# ── STAFF SESSION EVENT LOG ──────────────────────────────────────────────────
+
+def _session_event_label(row: dict, opponent: str | None = None) -> str:
+    session_type = str(row.get("session_type") or "session").title()
+    context = opponent or row.get("competition") or row.get("notes") or "Team session"
+    if opponent:
+        context = f"vs {opponent}"
+    return f"{row.get('session_date') or 'Date pending'} · {session_type} · {context}"
+
+
+def get_session_event_options(season: str | None = None) -> dict:
+    """Return validated form choices without exposing direct database access."""
+    client = get_client()
+    session_query = client.table("session").select(
+        "id, session_date, session_type, season, competition, venue, notes"
+    )
+    if season:
+        session_query = session_query.eq("season", season)
+    sessions = session_query.order("session_date", desc=True).execute().data or []
+    opponent_by_session = {
+        row["session_id"]: row.get("opponent")
+        for row in get_match_results(season)
+        if row.get("session_id")
+    }
+
+    athletes = client.table("athlete").select(
+        "id, display_name, first_name, last_name, position, position_group"
+    ).eq("status", "active").order("last_name").execute().data or []
+
+    weights = (
+        client.table("metric_weight")
+        .select(
+            "id, weight, version, weight_type, is_multiplier, coach_notes, "
+            "metric:metric_id(id, name, applies_to_session_type, "
+            "category:category_id(code, label))"
+        )
+        .eq("version", COUG_TABLE_WEIGHT_VERSION)
+        .is_("effective_to", "null")
+        .execute()
+        .data
+        or []
+    )
+
+    return {
+        "season": season,
+        "weight_version": COUG_TABLE_WEIGHT_VERSION,
+        "sessions": [
+            {
+                **row,
+                "opponent": opponent_by_session.get(row["id"]),
+                "label": _session_event_label(row, opponent_by_session.get(row["id"])),
+            }
+            for row in sessions
+        ],
+        "athletes": [
+            {
+                "id": row["id"],
+                "name": row.get("display_name")
+                or f"{row.get('first_name', '')} {row.get('last_name', '')}".strip(),
+                "position": row.get("position") or "",
+                "position_group": row.get("position_group") or "",
+            }
+            for row in athletes
+        ],
+        "weights": [
+            {
+                "id": row["id"],
+                "weight": row.get("weight"),
+                "version": row.get("version"),
+                "weight_type": row.get("weight_type"),
+                "is_multiplier": row.get("is_multiplier"),
+                "coach_notes": row.get("coach_notes"),
+                "metric_id": (row.get("metric") or {}).get("id"),
+                "metric_name": (row.get("metric") or {}).get("name"),
+                "applies_to_session_type": (row.get("metric") or {}).get("applies_to_session_type"),
+                "category_code": ((row.get("metric") or {}).get("category") or {}).get("code"),
+                "category_label": ((row.get("metric") or {}).get("category") or {}).get("label"),
+            }
+            for row in weights
+            if row.get("metric")
+        ],
+    }
+
+
+def get_session_events(season: str | None = None, limit: int = 50) -> list[dict]:
+    query = get_client().table("session_event").select(
+        "id, event_type, raw_value, event_time, notes, recorded_by, score_status, created_at, "
+        "session:session_id!inner(id, session_date, session_type, season, competition), "
+        "athlete:athlete_id(id, display_name, first_name, last_name, position), "
+        "metric_weight:metric_weight_id(id, weight, version, metric:metric_id(name, category:category_id(code, label)))"
+    ).order("created_at", desc=True)
+    if season:
+        query = query.eq("session.season", season)
+    rows = query.limit(limit).execute().data or []
+    result = []
+    for row in rows:
+        session = row.get("session") or {}
+        if season and str(session.get("season")) != str(season):
+            continue
+        athlete = row.get("athlete") or {}
+        weight = row.get("metric_weight") or {}
+        metric = weight.get("metric") or {}
+        result.append({
+            "id": row.get("id"),
+            "event_type": row.get("event_type"),
+            "raw_value": row.get("raw_value"),
+            "event_time": row.get("event_time"),
+            "notes": row.get("notes"),
+            "recorded_by": row.get("recorded_by"),
+            "score_status": row.get("score_status"),
+            "created_at": row.get("created_at"),
+            "session": session,
+            "athlete": {
+                **athlete,
+                "name": athlete.get("display_name")
+                or f"{athlete.get('first_name', '')} {athlete.get('last_name', '')}".strip(),
+            } if athlete else None,
+            "weight": weight.get("weight"),
+            "weight_version": weight.get("version"),
+            "metric_name": metric.get("name"),
+            "category_code": (metric.get("category") or {}).get("code"),
+            "category_label": (metric.get("category") or {}).get("label"),
+            "proposed_score": (
+                round(float(row.get("raw_value") or 1) * float(weight["weight"]), 4)
+                if weight.get("weight") is not None else None
+            ),
+        })
+    return result
+
+
+def create_session_event(payload: dict) -> dict:
+    """Create an informational or weighted event after resolving every FK exactly."""
+    client = get_client()
+    session_rows = client.table("session").select(
+        "id, session_type"
+    ).eq("id", payload["session_id"]).execute().data or []
+    if len(session_rows) != 1:
+        raise ValueError("Select a valid session.")
+
+    athlete_id = payload.get("athlete_id") or None
+    weight_id = payload.get("metric_weight_id") or None
+    if athlete_id:
+        athlete_rows = client.table("athlete").select("id").eq("id", athlete_id).execute().data or []
+        if len(athlete_rows) != 1:
+            raise ValueError("Select a valid athlete.")
+
+    if weight_id:
+        if not athlete_id:
+            raise ValueError("A weighted event must be assigned to an athlete.")
+        weight_rows = client.table("metric_weight").select(
+            "id, version, effective_to, metric:metric_id(applies_to_session_type)"
+        ).eq("id", weight_id).execute().data or []
+        if len(weight_rows) != 1:
+            raise ValueError("Select a valid scoring weight.")
+        weight = weight_rows[0]
+        if weight.get("version") != COUG_TABLE_WEIGHT_VERSION or weight.get("effective_to"):
+            raise ValueError("That scoring weight is not active for the current COUG version.")
+        applies_to = (weight.get("metric") or {}).get("applies_to_session_type")
+        session_type = session_rows[0].get("session_type")
+        if applies_to not in (None, "both", session_type):
+            raise ValueError(f"That metric does not apply to a {session_type} session.")
+
+    insert_payload = {
+        "session_id": payload["session_id"],
+        "athlete_id": athlete_id,
+        "event_type": payload["event_type"].strip(),
+        "metric_weight_id": weight_id,
+        "raw_value": payload.get("raw_value") or 1.0,
+        "event_time": payload.get("event_time"),
+        "notes": (payload.get("notes") or "").strip() or None,
+        "recorded_by": (payload.get("recorded_by") or "Staff portal").strip(),
+        "score_status": "pending_review" if weight_id else "informational",
+    }
+    created = client.table("session_event").insert(insert_payload).execute().data or []
+    if len(created) != 1:
+        raise RuntimeError("The event could not be saved.")
+    return {"id": created[0]["id"], "score_status": insert_payload["score_status"]}
+
+
 # ── MATCHES ───────────────────────────────────────────────────────────────────
 
 def get_match_results(season: str | None = None) -> list[dict]:

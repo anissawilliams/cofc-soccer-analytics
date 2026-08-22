@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 import sys
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import db
 from backend.schedule_data import load_api_schedule
@@ -79,6 +79,17 @@ class StaffLoginRequest(BaseModel):
     passcode: str
 
 
+class SessionEventRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=100)
+    athlete_id: Optional[str] = Field(default=None, max_length=100)
+    event_type: str = Field(min_length=1, max_length=100)
+    metric_weight_id: Optional[str] = Field(default=None, max_length=100)
+    raw_value: float = Field(default=1.0, gt=0, le=100)
+    event_time: Optional[float] = Field(default=None, ge=0, le=86400)
+    notes: Optional[str] = Field(default=None, max_length=2000)
+    recorded_by: Optional[str] = Field(default=None, max_length=100)
+
+
 @app.post("/api/staff/login")
 def staff_login(payload: StaffLoginRequest):
     """Exchange the server-held staff passcode for a short-lived bearer token."""
@@ -94,6 +105,35 @@ def staff_login(payload: StaffLoginRequest):
 @app.get("/api/staff/session")
 def staff_session(_staff: None = Depends(require_staff)):
     return {"authenticated": True}
+
+
+@app.get("/api/staff/session-events/options")
+def session_event_options(
+    season: Optional[str] = None,
+    _staff: None = Depends(require_staff),
+):
+    """Sessions, athletes, and exact active weights for the staff event form."""
+    return db.get_session_event_options(season)
+
+
+@app.get("/api/staff/session-events")
+def session_events(
+    season: Optional[str] = None,
+    limit: int = 50,
+    _staff: None = Depends(require_staff),
+):
+    return db.get_session_events(season=season, limit=max(1, min(limit, 200)))
+
+
+@app.post("/api/staff/session-events", status_code=201)
+def create_session_event(
+    payload: SessionEventRequest,
+    _staff: None = Depends(require_staff),
+):
+    try:
+        return db.create_session_event(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.get("/api/players")
 def get_players():

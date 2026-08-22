@@ -6,6 +6,7 @@ import {
 import { cachedApiFetch } from './apiCache';
 import MatchStory from './MatchStory.jsx';
 import ShotMap from './ShotMap.jsx';
+import SessionEventLog from './SessionEventLog.jsx';
 import { staffApiFetch, staffLogin, staffLogout, verifyStaffSession } from './staffApi';
 
 const T = {
@@ -115,6 +116,7 @@ function StaffDashboard({ analytics }) {
     ['simulator', 'Prediction Simulator'],
     ['story', 'Match Story'],
     ['shots', 'Shot Map'],
+    ['events', 'Event Log'],
     ['scouting', 'Scouting'],
     ['development', 'Player Development'],
     ['recruiting', 'Recruiting'],
@@ -159,6 +161,7 @@ function StaffDashboard({ analytics }) {
       {section === 'analytics' && analytics}
       {section === 'story' && <MatchStory />}
       {section === 'shots' && <ShotMap />}
+      {section === 'events' && <SessionEventLog />}
       {section === 'scouting' && (
         <StaffPlaceholder
           title="Scouting"
