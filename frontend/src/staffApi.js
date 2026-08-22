@@ -31,11 +31,16 @@ export async function staffLogin(passcode) {
   return payload;
 }
 
-export async function staffApiFetch(path) {
+export async function staffApiFetch(path, options = {}) {
   const token = storedToken();
   if (!token) throw new Error('Staff sign-in required');
   const response = await fetch(`${API}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    ...options,
+    headers: {
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
     cache: 'no-store',
   });
   if (response.status === 401) window.sessionStorage.removeItem(TOKEN_KEY);
