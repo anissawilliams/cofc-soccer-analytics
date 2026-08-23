@@ -43,6 +43,7 @@ GENERATED_ARTIFACTS = {
     "players.csv": ("coug_scoring", "player_events", "scoring_input"),
     "all_player_events.csv": ("coug_scoring", "all_player_events", "qa_stream"),
     "sportscode_team_events.csv": ("coug_scoring", "sportscode_team_events", "qa_stream"),
+    "minutes.csv": ("coug_scoring", "official_minutes", "scoring_input"),
 }
 
 
@@ -141,6 +142,10 @@ def validate_approval(approval: dict, report: dict, report_path: Path) -> dict[s
         raise PromotionError("Match analytics were approved, but the intake report says they are not ready.")
     if approvals["coug_scoring"] and not report.get("scoring", {}).get("ready"):
         raise PromotionError("COUG scoring was approved, but the intake report says it is not ready.")
+    if approvals["coug_scoring"] and not report.get("minutes", {}).get("ready"):
+        raise PromotionError(
+            "COUG scoring was approved, but official minutes and starters are not ready."
+        )
     if report.get("validation", {}).get("status") == "blocked":
         raise PromotionError("Blocked intake bundles cannot be promoted.")
     return {key: approvals[key] for key in APPROVAL_KEYS}
@@ -179,7 +184,9 @@ def build_candidates(
     if approvals["match_analytics"]:
         required_suffixes.update({"canonical_team_events.csv", "match_flow.json"})
     if approvals["coug_scoring"]:
-        required_suffixes.update({"players.csv", "all_player_events.csv", "sportscode_team_events.csv"})
+        required_suffixes.update({
+            "players.csv", "all_player_events.csv", "sportscode_team_events.csv", "minutes.csv"
+        })
     missing = [suffix for suffix in sorted(required_suffixes) if not (bundle_dir / f"{slug}_{suffix}").is_file()]
     if missing:
         raise PromotionError(f"Approved review bundle is missing: {', '.join(missing)}")

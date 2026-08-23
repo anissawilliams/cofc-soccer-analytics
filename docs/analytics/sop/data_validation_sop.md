@@ -17,7 +17,10 @@
 - Review canonical event counts and all unmapped labels.
 - For COUG scoring, confirm the player-coded file was detected and players match
   the current roster.
-- Compare visible score, goal, shot, and lineup totals with the Wyscout report.
+- Confirm official minutes/lineups are ready, with 11 starters and the expected
+  participant count.
+- Compare visible score, goal, shot, card, and lineup totals with the media-team
+  final box score and Wyscout.
 - Record discrepancies in the handoff instead of editing parser output.
 
 ## Staff Checklist
@@ -38,4 +41,5 @@ invent missing event detail.
 
 ## Change Log
 
+- v1.1 — Added official minutes, starters, and box-score checks.
 - v1.0 — Defined intake statuses and 2026 review checks.

@@ -18,6 +18,7 @@ Scoring runs separately once metric weights are coach-confirmed.
 Usage:
     python load_match.py --slug 2025-11-02_uncw --season 2025
     python load_match.py --slug 2025-11-02_uncw --season 2025 --dry-run
+    python load_match.py --slug 2025-11-02_uncw --season 2025 --bundle-dir /path/to/20_generated --dry-run
 
 Environment variables (or .env file):
     SUPABASE_URL
@@ -361,6 +362,20 @@ def upsert_athletes(
 
 # ── Stints ────────────────────────────────────────────────────────────────────
 
+def _stint_timing(row) -> tuple[int, int, bool]:
+    """Translate official minutes and starter status into one loader stint."""
+    mins = int(float(row.get("estimated_minutes", 90)))
+    raw_started = row.get("started")
+    if pd.isna(raw_started):
+        started = mins > 45
+    elif isinstance(raw_started, str):
+        started = raw_started.strip().lower() in {"true", "1", "yes", "y"}
+    else:
+        started = bool(raw_started)
+    minutes_on = 0 if started else max(0, 90 - mins)
+    return minutes_on, minutes_on + mins, started
+
+
 def load_stints(
     sb: Client,
     session_id: str,
@@ -389,13 +404,13 @@ def load_stints(
         if existing_rows:
             continue
 
-        mins = float(row.get("estimated_minutes", 90))
+        minutes_on, minutes_off, started = _stint_timing(row)
         payload = {
             "athlete_id":   athlete_id,
             "session_id":   session_id,
-            "minutes_on":   0,
-            "minutes_off":  int(mins),
-            "started":      mins > 45,
+            "minutes_on":   minutes_on,
+            "minutes_off":  minutes_off,
+            "started":      started,
             "participated": True,
         }
 
@@ -403,7 +418,8 @@ def load_stints(
             sb.table("athlete_session_stint").insert(payload).execute()
         inserted += 1
 
-    log.info(f"  Stints loaded: {inserted}")
+    action = "would load" if dry_run else "loaded"
+    log.info(f"  Stints {action}: {inserted}")
 
 
 # ── Athlete events ────────────────────────────────────────────────────────────
@@ -863,8 +879,9 @@ def load_wyscout_player_events(
             else:
                 skipped_duplicate += 1
 
+    action = "would load" if dry_run else "loaded"
     log.info(
-        f"  Wyscout player events: {inserted} loaded | "
+        f"  Wyscout player events: {inserted} {action} | "
         f"{skipped_duplicate} duplicates | "
         f"{skipped_outcome} filtered by outcome | "
         f"{skipped_position} filtered by position | "
@@ -971,7 +988,12 @@ def load_manifest(path: Path) -> dict:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def load_match(slug: str, season: str, dry_run: bool = False):
+def load_match(
+    slug: str,
+    season: str,
+    dry_run: bool = False,
+    bundle_dir: Path = None,
+):
     log.info(f"{'='*60}")
     log.info(f"Loading match: {slug}  (dry_run={dry_run})")
     log.info(f"{'='*60}")
@@ -979,7 +1001,7 @@ def load_match(slug: str, season: str, dry_run: bool = False):
     sb = get_client()  # always connect — dry_run only skips inserts, not lookups
 
     # Locate files
-    output_dir = OUTPUTS_DIR / season / slug
+    output_dir = bundle_dir.resolve() if bundle_dir else OUTPUTS_DIR / season / slug
     if not output_dir.exists():
         raise FileNotFoundError(f"Output directory not found: {output_dir}")
 
@@ -1077,7 +1099,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Load a match slug into Supabase")
     parser.add_argument("--slug",    required=True, help="Match slug e.g. 2025-11-02_uncw")
     parser.add_argument("--season",  default="2025", help="Season folder e.g. 2025")
+    parser.add_argument(
+        "--bundle-dir", type=Path, default=None,
+        help="Optional generated bundle folder; defaults to pipeline outputs for the season/slug",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Report what would happen without writing")
     args = parser.parse_args()
 
-    load_match(slug=args.slug, season=args.season, dry_run=args.dry_run)
+    load_match(
+        slug=args.slug,
+        season=args.season,
+        dry_run=args.dry_run,
+        bundle_dir=args.bundle_dir,
+    )

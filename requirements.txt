@@ -23,5 +23,8 @@ openpyxl
 # ── Fuzzy matching (athlete name resolution) ──────────────────
 rapidfuzz>=3.0.0
 
+# ── Match intake ──────────────────────────────────────────────
+pypdf>=5.0.0
+
 # ── Optional: AI queries (Tab 3) ─────────────────────────────
 # anthropic>=0.25.0

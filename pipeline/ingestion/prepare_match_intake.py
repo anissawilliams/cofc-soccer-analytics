@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from parse_wyscout import load_cofc_roster, normalize_player_name, parse_sportscode, read_xml
+from parse_official_box_score import discover_official_minutes
 from source_paths import get_source_paths
 
 
@@ -560,6 +561,10 @@ def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
             )
         ],
         "scoring": {"ready": False, "reason": "not yet roster-validated"},
+        "minutes": {
+            "ready": False,
+            "reason": "official final box score PDF has not been checked",
+        },
         "analytics": {"ready": analytics_ready, "reason": analytics_reason},
         "files": [
             {
@@ -611,6 +616,12 @@ def build_validation_summary(report: dict) -> dict:
         attention.append(report.get("analytics", {}).get("reason", "Match analytics are not ready."))
     if not report.get("scoring", {}).get("ready"):
         attention.append(report.get("scoring", {}).get("reason", "Player scoring is not ready."))
+    if not report.get("minutes", {}).get("ready"):
+        attention.append(
+            report.get("minutes", {}).get(
+                "reason", "Official minutes and starters are not ready."
+            )
+        )
 
     has_usable_output = bool(
         report.get("analytics", {}).get("ready") or report.get("scoring", {}).get("ready")
@@ -644,6 +655,7 @@ def render_validation_report(report: dict) -> str:
         "",
         f"- Match analytics: {'ready' if report['analytics']['ready'] else 'not ready'} — {report['analytics']['reason']}",
         f"- COUG player scoring: {'ready' if report['scoring']['ready'] else 'not ready'} — {report['scoring']['reason']}",
+        f"- Official minutes/lineups: {'ready' if report['minutes']['ready'] else 'not ready'} — {report['minutes']['reason']}",
         f"- Source files inventoried: {validation['source_files']}",
         "",
     ]
@@ -708,6 +720,10 @@ def main() -> None:
         processing_profiles, roster_path.resolve()
     )
     report["scoring"] = scoring_status
+    minutes_status, minutes_rows = discover_official_minutes(
+        input_dir, roster_path.resolve()
+    )
+    report["minutes"] = minutes_status
     report["season"] = str(args.season)
     if args.metadata:
         metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
@@ -728,6 +744,10 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / f"{args.slug}_intake_report.json"
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    (output_dir / f"{args.slug}_metadata.json").write_text(
+        json.dumps(report.get("metadata") or {}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     (output_dir / f"{args.slug}_validation_report.md").write_text(
         render_validation_report(report),
         encoding="utf-8",
@@ -747,6 +767,8 @@ def main() -> None:
         write_rows(output_dir / f"{args.slug}_players.csv", scoring_data["player_events"])
         write_rows(output_dir / f"{args.slug}_all_player_events.csv", scoring_data["all_player_events"])
         write_rows(output_dir / f"{args.slug}_sportscode_team_events.csv", scoring_data["team_events"])
+    if minutes_rows:
+        write_rows(output_dir / f"{args.slug}_minutes.csv", minutes_rows)
     print(f"Prepared intake outputs: {output_dir}", file=sys.stderr)
 
 
