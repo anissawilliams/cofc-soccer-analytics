@@ -1,6 +1,7 @@
 # CofC Match File Intake
 
-After each match, open the match menu in Wyscout and download these six files.
+After each match, collect the six Wyscout XML files and the media team's official
+final box score PDF. Keep the two sources in separate folders.
 
 ## Download These XML Files
 
@@ -12,6 +13,17 @@ After each match, open the match menu in Wyscout and download these six files.
 | `DOWNLOAD XML – CHARLESTON COUGARS (TEAM)` | `.xml` | Match Flow — required |
 | `DOWNLOAD XML – OPPONENT (TEAM)` | `.xml` | Match Flow — required |
 | `DOWNLOAD XML EFFECTIVE TIME` | `.xml` | Clock quality check |
+
+## Add the Official Box Score
+
+Put the final box score PDF from the media team in `00_source/official/`. This
+is separate from Wyscout and is required for official player minutes and
+starter status. It also gives staff an authoritative score, goal, card, and
+lineup check.
+
+Do not substitute the Wyscout match-report PDF for this file. Wyscout event
+times are useful for event analysis, but the media-team box score is the source
+of record for official minutes.
 
 Use `SPORTSCODE XML (NEW VERSION)`. If you also download the older
 `DOWNLOAD SPORTSCODE XML`, put the older file in `05_source_archive`, not in
@@ -69,6 +81,7 @@ name. Example: `2026-08-20_davidson`.
 2026/matches/2026-08-20_davidson/
   00_source/
     wyscout/          <- six current XML downloads
+    official/         <- final media-team box score PDF
     spiideo/          <- original Spiideo export, when available
   05_source_archive/ <- older or replaced downloads
   20_generated/      <- notebook output
@@ -133,10 +146,20 @@ approved product is not ready, or an approved artifact is missing. Filenames
 are preserved as metadata; classification and collision-safe Storage paths do
 not depend on students renaming vendor files.
 
+Staff can preview the database load directly from the generated Drive folder;
+no repository copy is required:
+
+```bash
+.venv/bin/python pipeline/ingestion/load_match.py \
+  --slug YYYY-MM-DD_opponent --season 2026 \
+  --bundle-dir "/path/to/20_generated" --dry-run
+```
+
 ## Stop and Ask for Help
 
 - A file is reported as `invalid_xml` or `unknown_xml`.
 - More than one Sportscode scoring file is detected.
+- Official minutes/lineups are not ready after adding the final box score PDF.
 - A player does not match the current roster.
 - The score or event totals disagree with Wyscout.
 - You are unsure which corrected download is current.
@@ -146,3 +169,6 @@ directly to `main`.
 
 The printable version is
 [`docs/xml_ingestion_guide.docx`](../../docs/xml_ingestion_guide.docx).
+
+For the shortest run-day handoff, use
+[`TOMORROW_MATCH_CHECKLIST.md`](TOMORROW_MATCH_CHECKLIST.md).

@@ -25,6 +25,7 @@ underscores between words. A minimal Drive layout is:
 2026/matches/YYYY-MM-DD_opponent/
   00_source/
     wyscout/
+    official/      # final media-team box score PDF
     spiideo/       # optional until a real export is available
   05_source_archive/  # older corrected/replaced downloads
   20_generated/
@@ -39,9 +40,10 @@ complete extension and download checklist.
 
 ## 2. Preserve the Original Exports
 
-Download every available Wyscout export into `00_source/wyscout/`. Do not rename,
-edit, convert, or overwrite vendor files. The intake creates a SHA-256 fingerprint
-for every source file so revised downloads can be identified later.
+Download every available Wyscout export into `00_source/wyscout/` and put the
+media team's final box score PDF in `00_source/official/`. Do not edit, convert,
+or overwrite source files. The intake creates a SHA-256 fingerprint for every
+source file so revised downloads can be identified later.
 
 ## 3. Run the Student Intake
 
@@ -61,6 +63,8 @@ table and all warnings before continuing.
   Flow.
 - A player-coded Sportscode XML that matches the season roster is required for
   COUG player-scoring preparation.
+- The media-team final box score is required for official minutes and starter
+  status; a Wyscout report PDF is not a substitute.
 - Match reports or richer Wyscout exports may still require reviewed shot-map
   enrichment.
 - Spiideo is archived independently until its real clock and event structure has
@@ -79,6 +83,7 @@ After resolving or documenting inspection results, set
 - human-readable validation report
 - canonical two-team events and Match Flow snapshot
 - roster-filtered player events, when eligible
+- official player minutes and starter status, when eligible
 - complete player/team parser streams for QA
 
 The bundle is not published and must not be presented as coach-ready.
@@ -100,7 +105,9 @@ Publication is a separate, credentialed staff action. The generated
 3. changes only the approved products to `true` and records any notes;
 4. runs the promotion command without `--apply`;
 5. reads `<slug>_promotion_receipt.json`; and
-6. reruns with `--apply` only when the preview is correct.
+6. previews the database loader against the Drive bundle; and
+7. reruns the approved promotion and loader without dry-run flags only when the
+   previews are correct.
 
 ```bash
 .venv/bin/python pipeline/ingestion/promote_match_intake.py \
@@ -111,6 +118,10 @@ Publication is a separate, credentialed staff action. The generated
   --source-dir "/path/to/00_source" \
   --bundle-dir "/path/to/20_generated" \
   --apply
+
+.venv/bin/python pipeline/ingestion/load_match.py \
+  --slug YYYY-MM-DD_opponent --season 2026 \
+  --bundle-dir "/path/to/20_generated" --dry-run
 ```
 
 The apply step requires staff-controlled `SUPABASE_URL` and
@@ -128,4 +139,5 @@ configuration, code, tests, and approved snapshots are versioned.
 
 ## Change Log
 
+- v1.1 — Added official-box-score minutes and starter validation.
 - v1.0 — Replaced the scaffold with the 2026 Drive/Colab review workflow.

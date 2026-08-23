@@ -9,6 +9,7 @@ INGESTION_DIR = Path(__file__).resolve().parents[1] / "pipeline" / "ingestion"
 sys.path.insert(0, str(INGESTION_DIR))
 
 from pipeline.ingestion.load_match import (
+    _stint_timing,
     fuzzy_match_athlete,
     load_or_create_match,
     load_stints,
@@ -53,6 +54,13 @@ class Client:
 
 
 class LoadMatchDryRunTests(unittest.TestCase):
+    def test_official_starter_flag_beats_minutes_heuristic(self):
+        substitute = pd.Series({
+            "player_name": "D. Toulson", "estimated_minutes": 58, "started": False
+        })
+
+        self.assertEqual(_stint_timing(substitute), (32, 90, False))
+
     def test_fuzzy_match_uses_rapidfuzz_mapping_key_as_athlete_id(self):
         athletes = [
             {

@@ -104,6 +104,7 @@ class MatchPromotionTests(unittest.TestCase):
             "season": "2026",
             "analytics": {"ready": True},
             "scoring": {"ready": False},
+            "minutes": {"ready": False},
             "validation": {"status": "ready_for_staff_review"},
             "source_manifest": [
                 {
@@ -181,6 +182,12 @@ class MatchPromotionTests(unittest.TestCase):
     def test_unready_product_cannot_be_approved(self):
         self.approval["approvals"]["coug_scoring"] = True
         with self.assertRaisesRegex(PromotionError, "not ready"):
+            validate_approval(self.approval, self.report, self.report_path)
+
+    def test_coug_scoring_requires_official_minutes(self):
+        self.report["scoring"] = {"ready": True}
+        self.approval["approvals"]["coug_scoring"] = True
+        with self.assertRaisesRegex(PromotionError, "official minutes"):
             validate_approval(self.approval, self.report, self.report_path)
 
     def test_dry_run_needs_no_supabase_credentials(self):

@@ -1,0 +1,49 @@
+# Match-Day Intake Checklist
+
+## Undergraduate analyst
+
+1. Create `2026/matches/YYYY-MM-DD_opponent/` with:
+
+   ```text
+   00_source/wyscout/
+   00_source/official/
+   20_generated/
+   ```
+
+2. Put the six current Wyscout XML downloads in `00_source/wyscout/`.
+3. Put the media team's final box score PDF in `00_source/official/`.
+4. Open `pipeline/notebooks/2026_match_intake.ipynb` in Colab and fill in only
+   the setup cell, including your full name in `prepared_by`.
+5. Leave `CREATE_REVIEW_BUNDLE = False`, run all cells through inspection, and
+   confirm all three rows are ready:
+   - Match analytics
+   - COUG player scoring
+   - Official minutes/lineups
+6. Confirm the source inventory, opponent, score, 11 starters, and participant
+   count. Record any warning; do not edit a source file.
+7. Set `CREATE_REVIEW_BUNDLE = True`, rerun the bundle cells, and send the
+   validation report plus `20_generated` folder to the staff reviewer.
+
+Stop if an XML is unknown/invalid, a player does not match the roster, the box
+score does not parse, or any visible total is wrong. Students do not publish.
+
+## Staff reviewer
+
+1. Read the validation report and spot-check score, goals, cards, player count,
+   starters, minutes, and event totals against the official box score/Wyscout.
+2. Complete the generated approval JSON.
+3. Run `promote_match_intake.py` without `--apply` and inspect the receipt.
+4. Run the staff loader directly against the generated Drive folder and review
+   its counts:
+
+   ```bash
+   .venv/bin/python pipeline/ingestion/load_match.py \
+     --slug YYYY-MM-DD_opponent --season 2026 \
+     --bundle-dir "/path/to/20_generated" --dry-run
+   ```
+
+5. Only then run the approved promotion and loader without their dry-run flags,
+   using staff credentials. The loader accepts the same `--bundle-dir`; no copy
+   into the repository is needed.
+
+Neither the notebook nor either dry run writes production data.

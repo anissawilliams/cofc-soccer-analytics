@@ -11,6 +11,7 @@ Required:
 
 - CofC shared Google Drive match-data folder
 - Wyscout access appropriate to the analyst's role
+- Access to the media team's final box score PDF
 - Google Colab
 - GitHub read access to this repository
 
@@ -29,7 +30,8 @@ notebook, Drive file, issue, or chat.
    [validation SOP](data_validation_sop.md).
 2. Open `pipeline/notebooks/2026_match_intake.ipynb` in Google Colab.
 3. Work with a staff member on one completed match.
-4. Download all available Wyscout match exports into that match's source folder.
+4. Put Wyscout XMLs in `00_source/wyscout/` and the media-team final box score
+   PDF in `00_source/official/`.
 5. Run the notebook inspection with `CREATE_REVIEW_BUNDLE = False`.
 6. Explain which analytics are ready, which are not, and why.
 7. After review, set `CREATE_REVIEW_BUNDLE = True` and create the bundle.
@@ -60,6 +62,7 @@ notebook, Drive file, issue, or chat.
 - An XML file is reported as unreadable or unknown.
 - A player name or number does not match the season roster.
 - Wyscout totals disagree with generated totals.
+- The official minutes/lineups readiness row is false.
 - The same source file appears in two match folders.
 - A correction would change a published match.
 
@@ -71,4 +74,5 @@ notified. Publication is a separate staff-owned step.
 
 ## Change Log
 
+- v1.1 — Added the separate official-box-score source and minutes check.
 - v1.0 — Added the 2026 Colab intake and staff-review boundary.

@@ -390,6 +390,10 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(saved["validation"]["status"], "ready_for_staff_review")
         self.assertFalse(saved["validation"]["published"])
         self.assertEqual(saved["metadata"]["opponent"], "Opponent FC")
+        generated_metadata = json.loads(
+            (output_dir / "2026-08-20_opponent_metadata.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(generated_metadata, {"opponent": "Opponent FC"})
         self.assertTrue((output_dir / "2026-08-20_opponent_validation_report.md").exists())
         self.assertTrue((output_dir / "2026-08-20_opponent_match_flow.json").exists())
         approval_path = output_dir / "2026-08-20_opponent_approval.json"
