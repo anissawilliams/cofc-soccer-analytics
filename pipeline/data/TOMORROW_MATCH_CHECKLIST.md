@@ -14,7 +14,8 @@
 2. Put the six current Wyscout XML downloads in `00_source/wyscout/`.
 3. Put the media team's final box score PDF in `00_source/official/`.
 4. If staff reports an incident, copy the template to `staff/staff_events.csv`
-   and add it. Use `82:30`, not a rounded minute, for an exact off moment.
+   and add it. Use the exact timestamp. Red cards are `-2`; yellow cards are
+   `-0.4` each and do not mark the player off.
 5. Open `pipeline/notebooks/2026_match_intake.ipynb` in Colab and fill in only
    the setup cell, including your full name in `prepared_by`.
 6. Leave `CREATE_REVIEW_BUNDLE = False`, run all cells through inspection, and
@@ -56,11 +57,13 @@ runs with separate staff-controlled gates.
 
 5. Apply `load_match.py` first. This creates the session, match, official
    stints, and event evidence, but does not publish a COUG score.
-6. Apply `promote_match_intake.py` second so the archived source and generated
+6. If `staff/staff_events.csv` exists, use the notebook's staff-event preview
+   and apply gate. Verify each player, timestamp, type, and proposed deduction.
+7. Apply `promote_match_intake.py` so the archived source and generated
    artifacts are registered against the new session.
-7. Run `publish_event_derived_coug_scores.py` without `--apply`. Review the
+8. Run `publish_event_derived_coug_scores.py` without `--apply`. Review the
    printed player scores and its review CSV.
-8. Only when those totals are approved, rerun the score publisher with
+9. Only when those totals are approved, rerun the score publisher with
    `--apply` to update the public COUG Table.
 
 The notebook and all dry runs are read-only. `load_match.py` writes evidence;

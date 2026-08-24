@@ -167,6 +167,15 @@ class SessionEventContractTests(unittest.TestCase):
         self.assertIn("information_schema.columns", sql)
         self.assertIn("column_name = 'scoring_version_id'", sql)
 
+    def test_yellow_card_metric_migration_is_idempotent_and_weighted(self):
+        sql = Path("schema/2026_08_yellow_card_metric.sql").read_text(encoding="utf-8")
+        self.assertIn("'Yellow Card'", sql)
+        self.assertIn("-0.4", sql)
+        self.assertIn("five cautions equal -2", sql)
+        self.assertIn("NOT EXISTS", sql)
+        self.assertIn("information_schema.columns", sql)
+        self.assertIn("column_name = 'scoring_version_id'", sql)
+
     def test_staff_page_uses_approved_weight_and_review_language(self):
         source = Path("frontend/src/SessionEventLog.jsx").read_text(encoding="utf-8")
         self.assertIn("Propose a COUG score contribution", source)

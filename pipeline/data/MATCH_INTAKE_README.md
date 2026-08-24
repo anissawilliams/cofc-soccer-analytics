@@ -94,16 +94,20 @@ Point the intake notebook at `00_source`, not the full match folder.
 ## Staff Events and Off Moments
 
 Copy [`staff_events_template.csv`](staff_events_template.csv) into the match's
-`staff/` folder and name it `staff_events.csv`. A red card row looks like:
+`staff/` folder and name it `staff_events.csv`. Red and yellow card rows look
+like:
 
 ```csv
 player_name,jersey,event_type,minute,weight,notes,entered_by
 J. Jordheim,3,red_card,82:30,-2,Unsporting behavior,AW
+Player Name,00,yellow_card,34:12,-0.4,Caution reason,AW
 ```
 
 The parser roster-matches the player, preserves the exact 82:30 off moment, and
-requires the approved red-card proposal of `-2`. The row is queued for staff
-review; it does not silently change a published score.
+requires the approved weights: `-2` for a red card and `-0.4` for a yellow card.
+Five yellow cards therefore total `-2`. A yellow card is not treated as a
+player-off moment. Every incident is queued for staff review; it does not
+silently change a published score.
 
 Staff events can be prepared retroactively without any Wyscout or PDF parsing:
 
@@ -114,7 +118,8 @@ Staff events can be prepared retroactively without any Wyscout or PDF parsing:
   --output-dir "/path/to/2026-08-20_davidson/20_generated"
 ```
 
-After staff runs `schema/2026_08_red_card_metric.sql`, preview or apply only the
+After staff runs the applicable `schema/2026_08_red_card_metric.sql` and
+`schema/2026_08_yellow_card_metric.sql` migrations, preview or apply only the
 staff events with:
 
 ```bash
