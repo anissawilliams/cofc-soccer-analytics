@@ -147,6 +147,15 @@ files can be reviewed; it does not mean approved or coach-ready.
 
 ## Staff Review and Supabase Promotion
 
+The preferred staff workflow is
+[`2026_match_publish.ipynb`](../notebooks/2026_match_publish.ipynb). It runs
+directly against the shared Drive match folder, pulls current code from GitHub,
+reads Supabase credentials from Colab Secrets, and keeps separate confirmation
+gates for approval, evidence loading, archive/Match Flow promotion, and final
+COUG score publication. No local download or Git data commit is required.
+
+The commands below document the same stages for recovery or local use.
+
 The notebook creates `<slug>_approval.json` with all three decisions set to
 `false`:
 
