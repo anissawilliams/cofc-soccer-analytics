@@ -43,19 +43,24 @@ class MatchIntakeNotebookTests(unittest.TestCase):
         self.assertIn("report.get('source_manifest') or []", code)
         self.assertIn("(report.get('team_event_summary') or {}).get('unmapped_labels')", code)
 
-    def test_publish_notebook_compiles_and_gates_staff_events_before_scores(self):
+    def test_publish_notebook_is_single_run_with_one_final_confirmation(self):
         document = json.loads(PUBLISH_NOTEBOOK.read_text(encoding="utf-8"))
         code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
         for index, cell in enumerate(code_cells):
             compile("".join(cell["source"]), f"publish-notebook-cell-{index}", "exec")
         code = "\n".join("".join(cell["source"]) for cell in code_cells)
 
-        self.assertIn("APPLY_STAFF_EVENTS = False", code)
-        self.assertIn("STAFF_CONFIRMATION", code)
         self.assertIn("prepare_staff_events.py", code)
         self.assertIn("load_staff_events.py", code)
-        self.assertLess(code.index("APPLY_STAFF_EVENTS = False"), code.index("PUBLISH_COUG_SCORES = False"))
-        self.assertIn("apply the supplied staff events before previewing final scores", code)
+        self.assertIn("promote_match_intake.py", code)
+        self.assertIn("publish_event_derived_coug_scores.py", code)
+        self.assertEqual(code.count("input("), 1)
+        self.assertIn("expected = f'PUBLISH {MATCH_SLUG}'", code)
+        self.assertIn("PUBLISHED AND VERIFIED", code)
+        self.assertNotIn("APPLY_EVIDENCE =", code)
+        self.assertNotIn("APPLY_STAFF_EVENTS =", code)
+        self.assertNotIn("APPLY_ARCHIVE =", code)
+        self.assertNotIn("PUBLISH_COUG_SCORES =", code)
 
 
 if __name__ == "__main__":

@@ -38,36 +38,18 @@ score does not parse, or any visible total is wrong. Students do not publish.
 ## Staff reviewer
 
 Use `pipeline/notebooks/2026_match_publish.ipynb` in Colab for the normal
-Drive-first workflow. The numbered commands below are the stages that notebook
-runs with separate staff-controlled gates.
+Drive-first workflow.
 
-1. Read the validation report and spot-check score, goals, cards, player count,
-   starters, minutes, and event totals against the official box score/Wyscout.
-2. Complete the generated approval JSON.
-3. Run `promote_match_intake.py` without `--apply` and inspect the receipt.
-4. Run the match loader directly against the generated Drive folder and review
-   its counts. The loader uses the reviewed bundle metadata; a separate manifest
-   edit is not required:
+1. Change `MATCH_SLUG` and `REVIEWED_BY` in the setup cell.
+2. Choose **Runtime → Run all**.
+3. Read the displayed validation report and final player score preview.
+4. Type `PUBLISH YYYY-MM-DD_opponent` once when the results are correct.
+5. Do not finish until the notebook displays **PUBLISHED AND VERIFIED**.
 
-   ```bash
-   .venv/bin/python pipeline/ingestion/load_match.py \
-     --slug YYYY-MM-DD_opponent --season 2026 \
-     --bundle-dir "/path/to/20_generated" --dry-run
-   ```
-
-5. Apply `load_match.py` first. This creates the session, match, official
-   stints, and event evidence, but does not publish a COUG score.
-6. If `staff/staff_events.csv` exists, use the notebook's staff-event preview
-   and apply gate. Verify each player, timestamp, type, and proposed deduction.
-7. Apply `promote_match_intake.py` so the archived source and generated
-   artifacts are registered against the new session.
-8. Run `publish_event_derived_coug_scores.py` without `--apply`. Review the
-   printed player scores and its review CSV.
-9. Only when those totals are approved, rerun the score publisher with
-   `--apply` to update the public COUG Table.
-
-The notebook and all dry runs are read-only. `load_match.py` writes evidence;
-only the final score-publisher `--apply` changes the public COUG Table.
+The notebook automatically prepares optional staff events, previews and loads
+evidence, archives sources and Match Flow, publishes the approved scores, and
+verifies all database outputs. Only the final confirmation changes the public
+COUG Table.
 
 For a late or corrected incident, run `prepare_staff_events.py` and
 `load_staff_events.py` separately, then republish that match's COUG score. Do
