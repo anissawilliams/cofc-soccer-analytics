@@ -1168,6 +1168,8 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
                 session.get("session_date"),
                 home.get("name"),
                 away.get("name"),
+                client=client,
+                session_id=session_id,
             ),
             "events": events,
         }

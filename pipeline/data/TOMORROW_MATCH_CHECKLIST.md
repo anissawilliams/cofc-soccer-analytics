@@ -36,6 +36,10 @@ score does not parse, or any visible total is wrong. Students do not publish.
 
 ## Staff reviewer
 
+Use `pipeline/notebooks/2026_match_publish.ipynb` in Colab for the normal
+Drive-first workflow. The numbered commands below are the stages that notebook
+runs with separate staff-controlled gates.
+
 1. Read the validation report and spot-check score, goals, cards, player count,
    starters, minutes, and event totals against the official box score/Wyscout.
 2. Complete the generated approval JSON.
