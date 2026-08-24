@@ -31,6 +31,7 @@ import os
 import re
 import sys
 import argparse
+import json
 import logging
 import math
 from pathlib import Path
@@ -161,6 +162,71 @@ def parse_slug(slug: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
+def load_bundle_manifest_row(output_dir: Path, slug: str, season: str) -> dict | None:
+    """Translate reviewed bundle metadata into the legacy loader contract.
+
+    New match intake bundles carry the staff-reviewed match facts beside the
+    generated CSVs. Those facts are safer than requiring a second manual row in
+    the historical manifest before loading a new match.
+    """
+    path = output_dir / f"{slug}_metadata.json"
+    if not path.is_file():
+        return None
+    try:
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Could not read reviewed match metadata: {path}: {exc}") from exc
+    if not isinstance(metadata, dict):
+        raise ValueError(f"Reviewed match metadata must be a JSON object: {path}")
+
+    slug_date, _ = parse_slug(slug)
+    if str(metadata.get("match_date") or "") != slug_date:
+        raise ValueError("Reviewed metadata match_date does not match the loader slug.")
+    if str(season) != slug_date[:4]:
+        raise ValueError("Loader season does not match the loader slug.")
+
+    required = ("opponent", "location", "competition", "cofc_score", "opponent_score")
+    missing = [key for key in required if metadata.get(key) in (None, "")]
+    if missing:
+        raise ValueError(f"Reviewed match metadata is missing: {', '.join(missing)}")
+
+    location = str(metadata["location"]).strip().casefold()
+    if location not in {"home", "away", "neutral"}:
+        raise ValueError("Reviewed metadata location must be home, away, or neutral.")
+
+    competition_key = str(metadata["competition"]).strip().replace("_", "-").casefold()
+    competition = {
+        "non-conference": "Non-Conference",
+        "conference": "Conference",
+        "postseason": "Postseason",
+    }.get(competition_key, str(metadata["competition"]).strip())
+    return {
+        "season": str(season),
+        "competition": competition,
+        "venue": metadata.get("venue"),
+        "session_type": "match",
+        "location": location,
+        "opponent": str(metadata["opponent"]).strip(),
+        "cofc_goals": int(metadata["cofc_score"]),
+        "opp_goals": int(metadata["opponent_score"]),
+    }
+
+
+def home_away_team_ids(
+    cofc_id: str | None,
+    opponent_id: str | None,
+    manifest_row: dict | None,
+) -> tuple[str | None, str | None]:
+    location = str(
+        (manifest_row or {}).get("location")
+        or (manifest_row or {}).get("venue")
+        or "home"
+    ).strip().casefold()
+    if location == "away":
+        return opponent_id, cofc_id
+    return cofc_id, opponent_id
+
+
 def load_or_create_session(
     sb: Client,
     slug: str,
@@ -257,7 +323,7 @@ def load_or_create_match(
     opp_id  = opp_team.data[0]["id"]  if opp_team.data  else None
 
     if not opp_id:
-        log.warning(f"  Team not found for slug '{opponent_slug}' — match.away_team_id will be null")
+        log.warning(f"  Team not found for slug '{opponent_slug}' — opponent team ID will be null")
 
     # Goals from manifest
     goals_for = None
@@ -278,10 +344,11 @@ def load_or_create_match(
         else:
             result_str = "D"
 
+    home_team_id, away_team_id = home_away_team_ids(cofc_id, opp_id, manifest_row)
     payload = {
         "session_id":    session_id,
-        "home_team_id":  cofc_id,
-        "away_team_id":  opp_id,
+        "home_team_id":  home_team_id,
+        "away_team_id":  away_team_id,
         "result":        result_str,
         "goals_for":     goals_for,
         "goals_against": goals_against,
@@ -1035,7 +1102,7 @@ def load_match(
     scored_df     = pd.read_csv(scored_path)         if scored_path                  else None
 
     manifest      = load_manifest(MANIFEST_PATH)
-    manifest_row  = manifest.get(slug)
+    manifest_row  = load_bundle_manifest_row(output_dir, slug, season) or manifest.get(slug)
 
     if dry_run:
         log.info("\n[DRY RUN MODE — no writes to Supabase]\n")

@@ -176,28 +176,54 @@ Preview the exact Supabase operations first:
   --bundle-dir "/path/to/20_generated"
 ```
 
-Review `<slug>_promotion_receipt.json`, then apply with staff credentials:
-
-```bash
-.venv/bin/python pipeline/ingestion/promote_match_intake.py \
-  --source-dir "/path/to/00_source" \
-  --bundle-dir "/path/to/20_generated" \
-  --apply
-```
-
-Promotion stops if a source file or intake report changed after review, an
-approved product is not ready, or an approved artifact is missing. Filenames
-are preserved as metadata; classification and collision-safe Storage paths do
-not depend on students renaming vendor files.
-
-Staff can preview the database load directly from the generated Drive folder;
-no repository copy is required:
+Review `<slug>_promotion_receipt.json`. Before applying the archive promotion,
+preview the database evidence load directly from the generated Drive folder:
 
 ```bash
 .venv/bin/python pipeline/ingestion/load_match.py \
   --slug YYYY-MM-DD_opponent --season 2026 \
   --bundle-dir "/path/to/20_generated" --dry-run
 ```
+
+The loader reads the reviewed `*_metadata.json` from the bundle; a separate
+match-manifest edit is not required. If the dry run is correct, apply the
+evidence load first:
+
+```bash
+.venv/bin/python pipeline/ingestion/load_match.py \
+  --slug YYYY-MM-DD_opponent --season 2026 \
+  --bundle-dir "/path/to/20_generated"
+```
+
+Then apply the archive promotion with staff credentials. Running promotion
+after the evidence load lets its `source_file` rows reference the new session:
+
+```bash
+.venv/bin/python pipeline/ingestion/promote_match_intake.py \
+  --source-dir "/path/to/00_source" \
+  --bundle-dir "/path/to/20_generated" \
+    --apply
+```
+
+Finally, preview the COUG scores. This reads the loaded evidence and writes a
+review CSV, but does not update the public table:
+
+```bash
+.venv/bin/python pipeline/analytics/publish_event_derived_coug_scores.py \
+  --season 2026 --slug YYYY-MM-DD_opponent
+```
+
+After reviewing every player's proposed total, publish with:
+
+```bash
+.venv/bin/python pipeline/analytics/publish_event_derived_coug_scores.py \
+  --season 2026 --slug YYYY-MM-DD_opponent --apply
+```
+
+Promotion stops if a source file or intake report changed after review, an
+approved product is not ready, or an approved artifact is missing. Filenames
+are preserved as metadata; classification and collision-safe Storage paths do
+not depend on students renaming vendor files.
 
 ## Stop and Ask for Help
 
