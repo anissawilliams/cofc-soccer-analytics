@@ -40,8 +40,9 @@ score does not parse, or any visible total is wrong. Students do not publish.
    starters, minutes, and event totals against the official box score/Wyscout.
 2. Complete the generated approval JSON.
 3. Run `promote_match_intake.py` without `--apply` and inspect the receipt.
-4. Run the staff loader directly against the generated Drive folder and review
-   its counts:
+4. Run the match loader directly against the generated Drive folder and review
+   its counts. The loader uses the reviewed bundle metadata; a separate manifest
+   edit is not required:
 
    ```bash
    .venv/bin/python pipeline/ingestion/load_match.py \
@@ -49,11 +50,17 @@ score does not parse, or any visible total is wrong. Students do not publish.
      --bundle-dir "/path/to/20_generated" --dry-run
    ```
 
-5. Only then run the approved promotion and loader without their dry-run flags,
-   using staff credentials. The loader accepts the same `--bundle-dir`; no copy
-   into the repository is needed.
+5. Apply `load_match.py` first. This creates the session, match, official
+   stints, and event evidence, but does not publish a COUG score.
+6. Apply `promote_match_intake.py` second so the archived source and generated
+   artifacts are registered against the new session.
+7. Run `publish_event_derived_coug_scores.py` without `--apply`. Review the
+   printed player scores and its review CSV.
+8. Only when those totals are approved, rerun the score publisher with
+   `--apply` to update the public COUG Table.
 
-Neither the notebook nor either dry run writes production data.
+The notebook and all dry runs are read-only. `load_match.py` writes evidence;
+only the final score-publisher `--apply` changes the public COUG Table.
 
 For a late or corrected incident, run `prepare_staff_events.py` and
 `load_staff_events.py` separately, then republish that match's COUG score. Do

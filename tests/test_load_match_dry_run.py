@@ -1,5 +1,7 @@
 import unittest
 import sys
+import json
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +13,8 @@ sys.path.insert(0, str(INGESTION_DIR))
 from pipeline.ingestion.load_match import (
     _stint_timing,
     fuzzy_match_athlete,
+    home_away_team_ids,
+    load_bundle_manifest_row,
     load_or_create_match,
     load_stints,
 )
@@ -54,6 +58,42 @@ class Client:
 
 
 class LoadMatchDryRunTests(unittest.TestCase):
+    def test_reviewed_bundle_metadata_drives_new_match_load(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "2026-08-23_fgcu_metadata.json").write_text(json.dumps({
+                "match_date": "2026-08-23",
+                "opponent": "Florida Gulf Coast",
+                "location": "home",
+                "competition": "non-conference",
+                "cofc_score": 3,
+                "opponent_score": 2,
+                "prepared_by": "Anissa",
+            }))
+
+            row = load_bundle_manifest_row(root, "2026-08-23_fgcu", "2026")
+
+        self.assertEqual(row["competition"], "Non-Conference")
+        self.assertEqual(row["cofc_goals"], 3)
+        self.assertEqual(row["opp_goals"], 2)
+        self.assertEqual(row["location"], "home")
+
+    def test_reviewed_bundle_metadata_rejects_wrong_match_date(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "2026-08-23_fgcu_metadata.json").write_text(json.dumps({
+                "match_date": "2026-08-24",
+            }))
+
+            with self.assertRaisesRegex(ValueError, "match_date"):
+                load_bundle_manifest_row(root, "2026-08-23_fgcu", "2026")
+
+    def test_away_metadata_places_opponent_in_home_team_column(self):
+        self.assertEqual(
+            home_away_team_ids("cofc", "opponent", {"location": "away"}),
+            ("opponent", "cofc"),
+        )
+
     def test_official_starter_flag_beats_minutes_heuristic(self):
         substitute = pd.Series({
             "player_name": "D. Toulson", "estimated_minutes": 58, "started": False
