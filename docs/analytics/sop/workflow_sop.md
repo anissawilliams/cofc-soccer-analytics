@@ -27,6 +27,8 @@ underscores between words. A minimal Drive layout is:
     wyscout/
     official/      # final media-team box score PDF
     spiideo/       # optional until a real export is available
+  staff/
+    staff_events.csv  # manual incidents and exact off moments, when needed
   05_source_archive/  # older corrected/replaced downloads
   20_generated/
 ```
@@ -71,6 +73,10 @@ table and all warnings before continuing.
   been validated. Do not force it into the Wyscout schema.
 
 One ready output does not imply every output is ready.
+
+Manual incidents live in the match-level `staff/staff_events.csv`. They can be
+validated and loaded independently for a past match; do not rerun Wyscout just
+to add or correct a card, injury, or off moment.
 
 ## 5. Create the Review Bundle
 

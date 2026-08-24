@@ -61,6 +61,14 @@ class LoadMatchDryRunTests(unittest.TestCase):
 
         self.assertEqual(_stint_timing(substitute), (32, 90, False))
 
+    def test_explicit_red_card_off_moment_wins(self):
+        dismissed = pd.Series({
+            "player_name": "J. Jordheim", "estimated_minutes": 83,
+            "started": True, "off_minute": 82.5,
+        })
+
+        self.assertEqual(_stint_timing(dismissed), (0, 83, True))
+
     def test_fuzzy_match_uses_rapidfuzz_mapping_key_as_athlete_id(self):
         athletes = [
             {

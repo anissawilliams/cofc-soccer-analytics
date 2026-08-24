@@ -44,6 +44,8 @@ GENERATED_ARTIFACTS = {
     "all_player_events.csv": ("coug_scoring", "all_player_events", "qa_stream"),
     "sportscode_team_events.csv": ("coug_scoring", "sportscode_team_events", "qa_stream"),
     "minutes.csv": ("coug_scoring", "official_minutes", "scoring_input"),
+    "staff_events.csv": ("coug_scoring", "staff_events", "scoring_input"),
+    "staff_events_report.json": ("review_bundle", "staff_events_report", "validation_report"),
 }
 
 
