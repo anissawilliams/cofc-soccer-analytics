@@ -22,6 +22,8 @@
 - Compare visible score, goal, shot, card, and lineup totals with the media-team
   final box score and Wyscout.
 - Record discrepancies in the handoff instead of editing parser output.
+- Confirm every red card has the correct player, exact off moment, proposed
+  `-2` weight, and staff initials in `staff_events.csv`.
 
 ## Staff Checklist
 

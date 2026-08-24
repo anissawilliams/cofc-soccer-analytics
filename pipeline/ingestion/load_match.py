@@ -372,6 +372,11 @@ def _stint_timing(row) -> tuple[int, int, bool]:
         started = raw_started.strip().lower() in {"true", "1", "yes", "y"}
     else:
         started = bool(raw_started)
+    explicit_off = row.get("off_minute")
+    if not pd.isna(explicit_off):
+        minutes_off = float(explicit_off)
+        minutes_on = 0 if started else max(0, minutes_off - mins)
+        return minutes_on, minutes_off, started
     minutes_on = 0 if started else max(0, 90 - mins)
     return minutes_on, minutes_on + mins, started
 

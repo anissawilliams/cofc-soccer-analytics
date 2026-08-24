@@ -83,11 +83,55 @@ name. Example: `2026-08-20_davidson`.
     wyscout/          <- six current XML downloads
     official/         <- final media-team box score PDF
     spiideo/          <- original Spiideo export, when available
+  staff/
+    staff_events.csv  <- shared manual incidents/off moments, when needed
   05_source_archive/ <- older or replaced downloads
   20_generated/      <- notebook output
 ```
 
 Point the intake notebook at `00_source`, not the full match folder.
+
+## Staff Events and Off Moments
+
+Copy [`staff_events_template.csv`](staff_events_template.csv) into the match's
+`staff/` folder and name it `staff_events.csv`. A red card row looks like:
+
+```csv
+player_name,jersey,event_type,minute,weight,notes,entered_by
+J. Jordheim,3,red_card,82:30,-2,Unsporting behavior,AW
+```
+
+The parser roster-matches the player, preserves the exact 82:30 off moment, and
+requires the approved red-card proposal of `-2`. The row is queued for staff
+review; it does not silently change a published score.
+
+Staff events can be prepared retroactively without any Wyscout or PDF parsing:
+
+```bash
+.venv/bin/python pipeline/ingestion/prepare_staff_events.py \
+  --season 2026 --slug 2026-08-20_davidson \
+  --staff-dir "/path/to/2026-08-20_davidson/staff" \
+  --output-dir "/path/to/2026-08-20_davidson/20_generated"
+```
+
+After staff runs `schema/2026_08_red_card_metric.sql`, preview or apply only the
+staff events with:
+
+```bash
+.venv/bin/python pipeline/ingestion/load_staff_events.py \
+  --season 2026 --slug 2026-08-20_davidson \
+  --staff-dir "/path/to/2026-08-20_davidson/staff"
+
+# Staff only, after reviewing the dry run:
+.venv/bin/python pipeline/ingestion/load_staff_events.py \
+  --season 2026 --slug 2026-08-20_davidson \
+  --staff-dir "/path/to/2026-08-20_davidson/staff" --apply
+```
+
+The apply step records the reviewed incident, updates an existing stint's exact
+off minute, and creates/updates the scoring event used by the normal COUG score
+publication. Rebuild/publish the affected match score afterward; other match
+parsing is not required.
 
 ## Run the Notebook
 
@@ -160,6 +204,7 @@ no repository copy is required:
 - A file is reported as `invalid_xml` or `unknown_xml`.
 - More than one Sportscode scoring file is detected.
 - Official minutes/lineups are not ready after adding the final box score PDF.
+- A supplied `staff_events.csv` row does not match the roster or approved weight.
 - A player does not match the current roster.
 - The score or event totals disagree with Wyscout.
 - You are unsure which corrected download is current.

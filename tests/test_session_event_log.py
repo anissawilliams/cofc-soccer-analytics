@@ -159,6 +159,12 @@ class SessionEventContractTests(unittest.TestCase):
         self.assertIn("pending_review", sql)
         self.assertIn("ENABLE ROW LEVEL SECURITY", sql)
 
+    def test_red_card_metric_migration_is_idempotent_and_weighted(self):
+        sql = Path("schema/2026_08_red_card_metric.sql").read_text(encoding="utf-8")
+        self.assertIn("'Red Card'", sql)
+        self.assertIn("-2", sql)
+        self.assertIn("NOT EXISTS", sql)
+
     def test_staff_page_uses_approved_weight_and_review_language(self):
         source = Path("frontend/src/SessionEventLog.jsx").read_text(encoding="utf-8")
         self.assertIn("Propose a COUG score contribution", source)

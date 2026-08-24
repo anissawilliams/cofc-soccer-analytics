@@ -23,6 +23,7 @@ from pathlib import Path
 from parse_wyscout import load_cofc_roster, normalize_player_name, parse_sportscode, read_xml
 from parse_official_box_score import discover_official_minutes
 from source_paths import get_source_paths
+from staff_events import inspect_staff_events
 
 
 PLAYER_CODE = re.compile(r"\(\d+\)\s+.+")
@@ -565,6 +566,13 @@ def build_intake_report(input_dir: Path, slug: str) -> tuple[dict, list[dict]]:
             "ready": False,
             "reason": "official final box score PDF has not been checked",
         },
+        "staff_events": {
+            "ready": True,
+            "supplied": False,
+            "reason": "no staff event CSV supplied",
+            "events": 0,
+            "off_moments": 0,
+        },
         "analytics": {"ready": analytics_ready, "reason": analytics_reason},
         "files": [
             {
@@ -622,6 +630,9 @@ def build_validation_summary(report: dict) -> dict:
                 "reason", "Official minutes and starters are not ready."
             )
         )
+    staff_status = report.get("staff_events") or {}
+    if staff_status.get("supplied") and not staff_status.get("ready"):
+        blocking.append(staff_status.get("reason", "Staff events did not validate."))
 
     has_usable_output = bool(
         report.get("analytics", {}).get("ready") or report.get("scoring", {}).get("ready")
@@ -656,6 +667,7 @@ def render_validation_report(report: dict) -> str:
         f"- Match analytics: {'ready' if report['analytics']['ready'] else 'not ready'} — {report['analytics']['reason']}",
         f"- COUG player scoring: {'ready' if report['scoring']['ready'] else 'not ready'} — {report['scoring']['reason']}",
         f"- Official minutes/lineups: {'ready' if report['minutes']['ready'] else 'not ready'} — {report['minutes']['reason']}",
+        f"- Staff events: {'ready' if report['staff_events']['ready'] else 'not ready'} — {report['staff_events']['reason']}",
         f"- Source files inventoried: {validation['source_files']}",
         "",
     ]
@@ -708,6 +720,10 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--roster", type=Path, default=None, help="Season roster CSV used for scoring validation")
     parser.add_argument("--metadata", type=Path, default=None, help="Optional match metadata JSON")
+    parser.add_argument(
+        "--staff-events", type=Path, default=None,
+        help="Optional staff_events.csv; defaults to <match>/staff/staff_events.csv",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Inspect and parse in memory without writing files")
     args = parser.parse_args()
 
@@ -724,6 +740,25 @@ def main() -> None:
         input_dir, roster_path.resolve()
     )
     report["minutes"] = minutes_status
+    staff_events_path = args.staff_events
+    if staff_events_path is None:
+        candidate = input_dir.parent / "staff" / "staff_events.csv"
+        staff_events_path = candidate if candidate.is_file() else None
+    staff_status, staff_events = inspect_staff_events(
+        staff_events_path.resolve() if staff_events_path else None,
+        roster_path.resolve(),
+        slug=args.slug,
+        season=str(args.season),
+    )
+    report["staff_events"] = staff_status
+    off_by_player = {
+        row["player_name"]: row["minute"]
+        for row in staff_events
+        if row.get("player_off")
+    }
+    for row in minutes_rows:
+        if row["player_name"] in off_by_player:
+            row["off_minute"] = off_by_player[row["player_name"]]
     report["season"] = str(args.season)
     if args.metadata:
         metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
@@ -769,6 +804,12 @@ def main() -> None:
         write_rows(output_dir / f"{args.slug}_sportscode_team_events.csv", scoring_data["team_events"])
     if minutes_rows:
         write_rows(output_dir / f"{args.slug}_minutes.csv", minutes_rows)
+    if staff_events:
+        write_rows(output_dir / f"{args.slug}_staff_events.csv", staff_events)
+        (output_dir / f"{args.slug}_staff_events_report.json").write_text(
+            json.dumps({"slug": args.slug, "season": str(args.season), "staff_events": staff_status}, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
     print(f"Prepared intake outputs: {output_dir}", file=sys.stderr)
 
 

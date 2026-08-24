@@ -46,6 +46,8 @@ notebook, Drive file, issue, or chat.
 - Review unmatched players and unmapped event labels.
 - Enrich shot or event fields only in the designated review template.
 - Record questions and corrections rather than silently changing generated data.
+- Add staff-supplied incidents only through the shared `staff_events.csv`
+  template; include your initials and an exact match clock.
 
 ## Safety Rules
 

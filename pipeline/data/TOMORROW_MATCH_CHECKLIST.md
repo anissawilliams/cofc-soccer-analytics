@@ -7,21 +7,25 @@
    ```text
    00_source/wyscout/
    00_source/official/
+   staff/
    20_generated/
    ```
 
 2. Put the six current Wyscout XML downloads in `00_source/wyscout/`.
 3. Put the media team's final box score PDF in `00_source/official/`.
-4. Open `pipeline/notebooks/2026_match_intake.ipynb` in Colab and fill in only
+4. If staff reports an incident, copy the template to `staff/staff_events.csv`
+   and add it. Use `82:30`, not a rounded minute, for an exact off moment.
+5. Open `pipeline/notebooks/2026_match_intake.ipynb` in Colab and fill in only
    the setup cell, including your full name in `prepared_by`.
-5. Leave `CREATE_REVIEW_BUNDLE = False`, run all cells through inspection, and
-   confirm all three rows are ready:
+6. Leave `CREATE_REVIEW_BUNDLE = False`, run all cells through inspection, and
+   confirm every applicable row is ready:
    - Match analytics
    - COUG player scoring
    - Official minutes/lineups
-6. Confirm the source inventory, opponent, score, 11 starters, and participant
+   - Staff events
+7. Confirm the source inventory, opponent, score, 11 starters, and participant
    count. Record any warning; do not edit a source file.
-7. Set `CREATE_REVIEW_BUNDLE = True`, rerun the bundle cells, and send the
+8. Set `CREATE_REVIEW_BUNDLE = True`, rerun the bundle cells, and send the
    validation report plus `20_generated` folder to the staff reviewer.
 
 Stop if an XML is unknown/invalid, a player does not match the roster, the box
@@ -47,3 +51,7 @@ score does not parse, or any visible total is wrong. Students do not publish.
    into the repository is needed.
 
 Neither the notebook nor either dry run writes production data.
+
+For a late or corrected incident, run `prepare_staff_events.py` and
+`load_staff_events.py` separately, then republish that match's COUG score. Do
+not rerun the Wyscout parser.
