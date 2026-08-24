@@ -67,7 +67,7 @@ class LoadMatchDryRunTests(unittest.TestCase):
             "started": True, "off_minute": 82.5,
         })
 
-        self.assertEqual(_stint_timing(dismissed), (0, 82.5, True))
+        self.assertEqual(_stint_timing(dismissed), (0, 83, True))
 
     def test_fuzzy_match_uses_rapidfuzz_mapping_key_as_athlete_id(self):
         athletes = [

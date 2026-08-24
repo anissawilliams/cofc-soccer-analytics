@@ -32,6 +32,7 @@ import re
 import sys
 import argparse
 import logging
+import math
 from pathlib import Path
 from datetime import datetime
 import ast
@@ -374,7 +375,7 @@ def _stint_timing(row) -> tuple[int, int, bool]:
         started = bool(raw_started)
     explicit_off = row.get("off_minute")
     if not pd.isna(explicit_off):
-        minutes_off = float(explicit_off)
+        minutes_off = int(math.ceil(float(explicit_off)))
         minutes_on = 0 if started else max(0, minutes_off - mins)
         return minutes_on, minutes_off, started
     minutes_on = 0 if started else max(0, 90 - mins)

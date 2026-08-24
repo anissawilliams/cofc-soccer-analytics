@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -182,7 +183,7 @@ def load_events(client, session_id: str, events: list[dict], *, apply: bool) -> 
                 if apply:
                     (
                         client.table("athlete_session_stint")
-                        .update({"minutes_off": event["minute"]})
+                        .update({"minutes_off": int(math.ceil(event["minute"]))})
                         .eq("id", stints[0]["id"])
                         .execute()
                     )
@@ -198,7 +199,7 @@ def load_events(client, session_id: str, events: list[dict], *, apply: bool) -> 
                 "player_off": bool(event.get("player_off")),
                 "entered_by": event["entered_by"],
             }
-            scoring_rows = (
+            scoring_rows = [] if source_id == "dry-run-staff-events-source" else (
                 client.table("athlete_event")
                 .select("id")
                 .eq("session_id", session_id)

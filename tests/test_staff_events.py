@@ -174,6 +174,31 @@ class StaffEventTests(unittest.TestCase):
         self.assertEqual(report["scoring_events_would_insert"], 1)
         self.assertEqual(client.writes, [])
 
+    def test_dry_run_with_missing_source_does_not_query_placeholder_uuid(self):
+        client = FakeClient({
+            "athlete": [{"id": "athlete-3", "display_name": "J. Jordheim"}],
+            "metric_weight": [{
+                "id": "red-weight", "weight": -2, "version": "trial_1",
+                "effective_to": None,
+                "metric": {"id": "red-metric", "name": "Red Card"},
+            }],
+            "data_source": [],
+            "session_event": [],
+            "athlete_session_stint": [],
+            "athlete_event": [{"source_id": "some-real-uuid"}],
+        })
+        event = {
+            "match_slug": "2026-08-20_davidson",
+            "player_name": "J. Jordheim", "event_type": "red_card",
+            "event_time": 4950.0, "minute": 82.5, "metric_name": "Red Card",
+            "proposed_weight": -2, "player_off": True, "notes": "Dismissed",
+            "entered_by": "AW",
+        }
+
+        report = load_events(client, "session-1", [event], apply=False)
+
+        self.assertEqual(report["scoring_events_would_insert"], 1)
+
     def test_existing_red_card_is_updated_not_duplicated(self):
         client = FakeClient({
             "athlete": [{"id": "athlete-3", "display_name": "J. Jordheim"}],
