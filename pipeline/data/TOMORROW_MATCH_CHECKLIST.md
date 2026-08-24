@@ -28,6 +28,9 @@
 8. Set `CREATE_REVIEW_BUNDLE = True`, rerun the bundle cells, and send the
    validation report plus `20_generated` folder to the staff reviewer.
 
+Use [`UNDERGRAD_GENERATED_REVIEW.md`](UNDERGRAD_GENERATED_REVIEW.md) for the
+file-by-file review and clear stop conditions.
+
 Stop if an XML is unknown/invalid, a player does not match the roster, the box
 score does not parse, or any visible total is wrong. Students do not publish.
 
