@@ -155,32 +155,38 @@ files can be reviewed; it does not mean approved or coach-ready.
 The preferred staff workflow is
 [`2026_match_publish.ipynb`](../notebooks/2026_match_publish.ipynb). It runs
 directly against the shared Drive match folder, pulls current code from GitHub,
-reads Supabase credentials from Colab Secrets, and keeps separate confirmation
-gates for approval, evidence loading, archive/Match Flow promotion, and final
-COUG score publication. No local download or Git data commit is required.
+reads Supabase credentials from Colab Secrets, and requires confirmation only
+for the final public score write. Change the match slug and reviewer, choose
+**Runtime → Run all**, review the validation and score output, and type
+`PUBLISH <slug>` once. The notebook handles staff events, evidence, archive,
+Match Flow, score publication, and final verification in the correct order. No
+local download or Git data commit is required.
 
 The commands below document the same stages for recovery or local use.
 
-The notebook creates `<slug>_approval.json` with all three decisions set to
-`false`:
+The notebook writes the staff approval record automatically after confirming
+that match analytics, COUG scoring, and official minutes are ready. It then
+previews every operation before applying it. Only the final score write waits
+for the staff reviewer to type the exact publication confirmation.
+
+An approval record has this shape:
 
 ```json
 {
   "reviewed_by": "",
   "reviewed_at": "",
   "approvals": {
-    "source_archive": false,
-    "match_analytics": false,
-    "coug_scoring": false
+    "source_archive": true,
+    "match_analytics": true,
+    "coug_scoring": true
   },
   "notes": ""
 }
 ```
 
-Staff—not students—complete this file after reviewing the validation report.
-Use a timestamp with timezone, for example `2026-08-20T18:30:00-04:00`. It is
-valid to approve the source archive and match analytics while leaving COUG
-scoring false.
+Staff—not students—run the publication notebook and make the final publication
+decision. The commands below remain documented only for recovery or local
+diagnosis; they are not the normal match workflow.
 
 Preview the exact Supabase operations first:
 
