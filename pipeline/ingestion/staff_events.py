@@ -17,6 +17,10 @@ EVENT_TYPES = {
 REQUIRED_COLUMNS = {
     "player_name", "jersey", "event_type", "minute", "weight", "notes", "entered_by",
 }
+SCORING_EVENTS = {
+    "red_card": {"metric_name": "Red Card", "weight": -2.0, "player_off": True},
+    "yellow_card": {"metric_name": "Yellow Card", "weight": -0.4, "player_off": False},
+}
 
 
 def parse_minute(value: str) -> tuple[float, float]:
@@ -96,12 +100,14 @@ def parse_staff_events(
             raise ValueError(f"row {index}: entered_by is required")
         weight_text = str(row.get("weight") or "").strip()
         weight = float(weight_text) if weight_text else None
-        metric_name = "Red Card" if event_type == "red_card" else None
-        if event_type == "red_card" and weight != -2:
-            raise ValueError(f"row {index}: red_card weight must be -2")
-        if event_type != "red_card" and weight is not None:
+        scoring = SCORING_EVENTS.get(event_type)
+        if scoring and weight != scoring["weight"]:
             raise ValueError(
-                f"row {index}: only red_card has an approved CSV weight; leave weight blank"
+                f"row {index}: {event_type} weight must be {scoring['weight']:g}"
+            )
+        if not scoring and weight is not None:
+            raise ValueError(
+                f"row {index}: {event_type} is informational; leave weight blank"
             )
         events.append({
             "match_slug": slug,
@@ -111,9 +117,9 @@ def parse_staff_events(
             "event_type": event_type,
             "minute": minute,
             "event_time": event_time,
-            "metric_name": metric_name or "",
+            "metric_name": scoring["metric_name"] if scoring else "",
             "proposed_weight": weight if weight is not None else "",
-            "player_off": event_type == "red_card",
+            "player_off": scoring["player_off"] if scoring else False,
             "notes": str(row.get("notes") or "").strip(),
             "entered_by": entered_by,
             "source_file": csv_path.name,

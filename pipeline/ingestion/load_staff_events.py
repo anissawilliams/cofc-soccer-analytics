@@ -116,7 +116,7 @@ def load_events(client, session_id: str, events: list[dict], *, apply: bool) -> 
             if not weight:
                 raise ValueError(
                     f"No active {db.COUG_TABLE_WEIGHT_VERSION} weight exists for "
-                    f"{event['metric_name']}. Run the red-card metric migration first."
+                    f"{event['metric_name']}. Run the matching staff metric migration first."
                 )
             if float(weight.get("weight")) != float(event["proposed_weight"]):
                 raise ValueError(
@@ -206,10 +206,11 @@ def load_events(client, session_id: str, events: list[dict], *, apply: bool) -> 
                 .eq("athlete_id", athlete_id)
                 .eq("metric_id", metric_id)
                 .eq("source_id", source_id)
-                .execute()
-                .data
-                or []
             )
+            if source_id != "dry-run-staff-events-source":
+                if event["event_type"] != "red_card":
+                    scoring_rows = scoring_rows.eq("event_time", event["event_time"])
+                scoring_rows = scoring_rows.execute().data or []
             scoring_payload = {
                 "athlete_id": athlete_id,
                 "session_id": session_id,
