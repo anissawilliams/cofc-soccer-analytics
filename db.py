@@ -577,6 +577,36 @@ def _is_published_match_score(row: dict, weight_version: str) -> bool:
     )
 
 
+def _published_match_totals(score_rows: list[dict], weight_version: str) -> dict:
+    """Sum the reviewed match rows that back the public COUG Table.
+
+    Match Story must not reconstruct the official score from athlete_event.
+    The event ledger is supporting evidence and does not encode every mapping,
+    threshold, normalization, or review decision made by the publisher.
+    """
+    published_rows = [
+        row for row in score_rows
+        if _is_published_match_score(row, weight_version)
+    ]
+    score_columns = {
+        "aset": "aset_score",
+        "peak": "peak_score",
+        "set_piece": "set_piece_score",
+        "positional": "positional_score",
+        "load": "load_score",
+        "total": "total_score",
+    }
+    totals = {
+        name: round(sum(float(row.get(column) or 0) for row in published_rows), 4)
+        for name, column in score_columns.items()
+    }
+    return {
+        "published": bool(published_rows),
+        "published_score_rows": len(published_rows),
+        **totals,
+    }
+
+
 def get_seasons() -> list[str]:
     """Distinct seasons from session table."""
     try:
@@ -1003,10 +1033,21 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
         "summary": {
             "events": 0,
             "players": 0,
+            "published": False,
+            "published_score_rows": 0,
             "aset": 0,
             "peak": 0,
             "set_piece": 0,
+            "positional": 0,
+            "load": 0,
             "total": 0,
+            "evidence": {
+                "aset": 0,
+                "peak": 0,
+                "set_piece": 0,
+                "positional": 0,
+                "total": 0,
+            },
             "published_peak": 0,
             "untimed_peak": 0,
             "peak_coverage_ratio": None,
@@ -1071,7 +1112,13 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
 
         events = []
         player_ids = set()
-        totals = {"aset": 0.0, "peak": 0.0, "set_piece": 0.0, "total": 0.0}
+        evidence_totals = {
+            "aset": 0.0,
+            "peak": 0.0,
+            "set_piece": 0.0,
+            "positional": 0.0,
+            "total": 0.0,
+        }
         for row in raw_events:
             athlete = row.get("athlete") or {}
             metric = row.get("metric") or {}
@@ -1081,9 +1128,9 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
             raw_value = 1.0 if row.get("raw_value") is None else float(row.get("raw_value"))
             weight = weights.get(metric.get("id"))
             contribution = round(raw_value * float(weight), 4) if weight is not None else None
-            if bucket in totals and contribution is not None:
-                totals[bucket] = round(totals[bucket] + contribution, 4)
-                totals["total"] = round(totals["total"] + contribution, 4)
+            if bucket in evidence_totals and contribution is not None:
+                evidence_totals[bucket] = round(evidence_totals[bucket] + contribution, 4)
+                evidence_totals["total"] = round(evidence_totals["total"] + contribution, 4)
 
             athlete_id = row.get("athlete_id")
             if athlete_id:
@@ -1121,28 +1168,30 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
             event.get("player") or "",
         ))
 
-        published_peak = 0.0
+        published_totals = _published_match_totals([], weight_version)
         try:
             score_rows = (
                 client.table("coug_score")
-                .select("peak_score, score_type, weight_version:weight_version_id(version)")
+                .select(
+                    "aset_score, peak_score, set_piece_score, positional_score, "
+                    "load_score, total_score, score_type, "
+                    "weight_version:weight_version_id(version)"
+                )
                 .eq("session_id", session_id)
                 .execute()
                 .data
                 or []
             )
-            published_peak = round(sum(
-                float(row.get("peak_score") or 0)
-                for row in score_rows
-                if row.get("score_type") == "match"
-                and (row.get("weight_version") or {}).get("version") == weight_version
-            ), 4)
+            published_totals = _published_match_totals(score_rows, weight_version)
         except Exception as exc:
-            # Coverage is supplemental. A missing score rollup must not hide the
-            # source-traceable event story during a rolling deployment.
-            print(f"[db] get_match_story peak coverage error: {exc}")
+            # A score-read failure must not turn event evidence into an official
+            # total. Return the story as unpublished instead.
+            print(f"[db] get_match_story published score error: {exc}")
 
-        peak_coverage = _match_story_peak_coverage(totals["peak"], published_peak)
+        peak_coverage = _match_story_peak_coverage(
+            evidence_totals["peak"],
+            published_totals["peak"],
+        )
 
         return {
             "session_id": session_id,
@@ -1161,7 +1210,8 @@ def get_match_story(session_id: str, weight_version: str = "trial_1") -> dict:
             "summary": {
                 "events": len(events),
                 "players": len(player_ids),
-                **totals,
+                **published_totals,
+                "evidence": evidence_totals,
                 **peak_coverage,
             },
             "flow": get_match_flow(

@@ -271,7 +271,7 @@ function MatchPulse({ events, endMinute, selectedWindow, onSelectWindow }) {
 }
 
 function PeakCoverage({ summary }) {
-  const timed = Number(summary?.peak || 0);
+  const timed = Number(summary?.evidence?.peak || 0);
   const published = Number(summary?.published_peak || 0);
   const untimed = Number(summary?.untimed_peak || 0);
   const ratio = published > 0 ? Math.min(timed / published, 1) : 0;
@@ -282,14 +282,14 @@ function PeakCoverage({ summary }) {
         <strong style={{ fontSize: 12 }}>PEAK evidence coverage</strong>
         <span style={{ color: C.muted, fontSize: 11 }}>
           Timed <b style={{ color: C.gold }}>{score(timed)}</b> / Published <b style={{ color: C.text }}>{score(published)}</b>
-          {untimed > 0 && <> · <b style={{ color: C.other }}>{score(untimed)} untimed legacy PEAK</b></>}
+          {untimed > 0 && <> · <b style={{ color: C.other }}>{score(untimed)} not placed on timeline</b></>}
         </span>
       </div>
       <div style={{ height: 5, background: C.bg, marginTop: 9 }}>
         <div style={{ width: `${ratio * 100}%`, height: '100%', background: C.gold }} />
       </div>
       <div style={{ color: C.muted, fontSize: 10, marginTop: 7 }}>
-        Untimed legacy points remain in the published COUG score but are not placed at an invented match minute.
+        The timeline is supporting event evidence. Published normalization, thresholds, and untimed evidence can create a gap; the official total always comes from the COUGs store.
       </div>
     </div>
   );
@@ -422,7 +422,7 @@ export default function MatchStory() {
           <div>
             <div style={{ color: C.gold, fontSize: 11, letterSpacing: 2.5, fontWeight: 800 }}>COFC MATCH ANALYSIS</div>
             <h1 style={{ margin: '5px 0 4px', fontSize: 30, letterSpacing: 1 }}>MATCH STORY</h1>
-            <div style={{ color: C.muted, fontSize: 13 }}>A chronological, source-traceable view of what counted and when.</div>
+            <div style={{ color: C.muted, fontSize: 13 }}>Published COUG score with a separate, source-traceable event timeline.</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <select value={season} onChange={e => {
@@ -459,7 +459,11 @@ export default function MatchStory() {
                 {match.goals_for ?? '–'} <span style={{ color: C.muted }}>:</span> {match.goals_against ?? '–'}
               </div>
               <div style={{ display: 'flex', gap: 24 }}>
-                {[['EVENTS', story.summary.events], ['PLAYERS', story.summary.players], ['COUG', score(story.summary.total)]].map(([label, value]) => (
+                {[
+                  ['EVIDENCE', story.summary.events],
+                  ['PLAYERS', story.summary.players],
+                  ['PUBLISHED COUG', story.summary.published ? score(story.summary.total) : '—'],
+                ].map(([label, value]) => (
                   <div key={label} style={{ textAlign: 'right' }}><div style={{ color: C.muted, fontSize: 9, letterSpacing: 1.5 }}>{label}</div><strong style={{ fontSize: 18 }}>{value}</strong></div>
                 ))}
               </div>
