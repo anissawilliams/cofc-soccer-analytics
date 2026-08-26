@@ -244,7 +244,13 @@ def get_schedule(season: Optional[str] = None):
 def get_coug_scores_with_minutes(session_id: str, season: Optional[str] = None):
     """COUG scores + minutes for a single match."""
     if season:
-        snapshot = snapshot_value(season, "match_scores", session_id)
+        snapshot = snapshot_value(
+            season,
+            "match_scores",
+            session_id,
+            required_score_source=db.OFFICIAL_COUG_DATA_SOURCE,
+            required_weight_version=db.DEFAULT_COUG_WEIGHT_VERSION,
+        )
         if snapshot is not None:
             return snapshot
     return db.get_coug_scores_with_minutes(session_id)
@@ -260,7 +266,12 @@ def get_match_story(session_id: str, weight_version: str = "trial_1"):
 @ttl_cached()
 def get_coug_leaderboard_with_minutes(season: str):
     """Season leaderboard with aggregated scores and total minutes."""
-    snapshot = snapshot_value(season, "leaderboard")
+    snapshot = snapshot_value(
+        season,
+        "leaderboard",
+        required_score_source=db.OFFICIAL_COUG_DATA_SOURCE,
+        required_weight_version=db.DEFAULT_COUG_WEIGHT_VERSION,
+    )
     if snapshot is not None:
         return snapshot
     return db.get_season_leaderboard_with_minutes(season)
@@ -271,7 +282,14 @@ def get_coug_leaderboard_with_minutes(season: str):
 def get_player_match_history(athlete_id: str, season: Optional[str] = None):
     """Per-match score + minutes history for a single player."""
     selected_season = season or get_active_season()
-    snapshot = snapshot_value(selected_season, "players", athlete_id, "match_history")
+    snapshot = snapshot_value(
+        selected_season,
+        "players",
+        athlete_id,
+        "match_history",
+        required_score_source=db.OFFICIAL_COUG_DATA_SOURCE,
+        required_weight_version=db.DEFAULT_COUG_WEIGHT_VERSION,
+    )
     if snapshot is not None:
         return snapshot
     return db.get_player_match_history(athlete_id, selected_season)

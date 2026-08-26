@@ -52,8 +52,22 @@ def load_player_read_model(season: str, athlete_id: str) -> dict[str, Any] | Non
     return _load_json(path)
 
 
-def snapshot_value(season: str, *keys: str) -> Any | None:
+def snapshot_value(
+    season: str,
+    *keys: str,
+    required_score_source: str | None = None,
+    required_weight_version: str | None = None,
+) -> Any | None:
     value: Any = load_season_read_model(season)
+    if required_score_source and (
+        not value or value.get("official_score_source") != required_score_source
+    ):
+        return None
+    if required_weight_version and (
+        not value or value.get("weight_version") != required_weight_version
+    ):
+        return None
+
     remaining_keys = keys
     if (
         value

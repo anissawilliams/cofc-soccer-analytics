@@ -48,6 +48,24 @@ def get_client() -> Client:
     return _client
 
 
+OFFICIAL_COUG_SCORE_TYPE = "match"
+OFFICIAL_COUG_DATA_SOURCE = "xml"
+DEFAULT_COUG_WEIGHT_VERSION = os.environ.get("COUG_WEIGHT_VERSION", "trial_1")
+
+
+def _is_official_coug_score(row: dict, weight_version: str | None = None) -> bool:
+    """Only event-derived, match-level score rows should feed staff-facing totals."""
+    if row.get("score_type") != OFFICIAL_COUG_SCORE_TYPE:
+        return False
+    if row.get("data_source_path") != OFFICIAL_COUG_DATA_SOURCE:
+        return False
+
+    expected_version = weight_version or DEFAULT_COUG_WEIGHT_VERSION
+    scoring_version = row.get("scoring_version") or {}
+    actual_version = scoring_version.get("version")
+    return actual_version == expected_version
+
+
 # ── ATHLETES ─────────────────────────────────────────────────────────────────
 
 def get_players() -> list[dict]:
@@ -165,7 +183,11 @@ def get_team_summary(season: str | None = None) -> dict:
 
 # ── COUG SCORES ───────────────────────────────────────────────────────────────
 
-def get_coug_scores(session_id: str | None = None, season: str | None = None) -> list[dict]:
+def get_coug_scores(
+    session_id: str | None = None,
+    season: str | None = None,
+    weight_version: str | None = None,
+) -> list[dict]:
     """
     COUG Table scores. Filter by session or season.
     Returns empty list if scores not yet calculated (XML pending).
@@ -174,9 +196,10 @@ def get_coug_scores(session_id: str | None = None, season: str | None = None) ->
         query = get_client().table("coug_score").select(
             "id, aset_score, peak_score, set_piece_score, positional_score, "
             "load_score, total_score, score_type, data_source_path, calculated_at, "
+            "scoring_version:scoring_version_id(version), "
             "athlete:athlete_id(id, display_name, first_name, last_name, position, position_group), "
             "session:session_id(session_date, season, competition)"
-        )
+        ).eq("score_type", OFFICIAL_COUG_SCORE_TYPE).eq("data_source_path", OFFICIAL_COUG_DATA_SOURCE)
         if session_id:
             query = query.eq("session_id", session_id)
 
@@ -184,6 +207,9 @@ def get_coug_scores(session_id: str | None = None, season: str | None = None) ->
 
         results = []
         for r in (res.data or []):
+            if not _is_official_coug_score(r, weight_version):
+                continue
+
             s = r.get("session") or {}
             a = r.get("athlete") or {}
 
@@ -215,12 +241,15 @@ def get_coug_scores(session_id: str | None = None, season: str | None = None) ->
         return []
 
 
-def get_season_coug_leaderboard(season: str) -> list[dict]:
+def get_season_coug_leaderboard(
+    season: str,
+    weight_version: str | None = None,
+) -> list[dict]:
     """
     Aggregate COUG scores across all matches for a season.
     Returns per-player totals sorted by total_score.
     """
-    scores = get_coug_scores(season=season)
+    scores = get_coug_scores(season=season, weight_version=weight_version)
     if not scores:
         return []
 
@@ -412,17 +441,23 @@ def get_seasons() -> list[str]:
         return ["2025"]
 
 
-def get_coug_scores_with_minutes(session_id: str) -> list[dict]:
+def get_coug_scores_with_minutes(
+    session_id: str,
+    weight_version: str | None = None,
+) -> list[dict]:
     """
     COUG scores joined with minutes from athlete_session_stint for one match.
     """
     try:
         scores = get_client().table("coug_score").select(
             "id, aset_score, peak_score, set_piece_score, positional_score, "
-            "load_score, total_score, calculated_at, "
+            "load_score, total_score, score_type, data_source_path, calculated_at, "
+            "scoring_version:scoring_version_id(version), "
             "athlete:athlete_id(id, display_name, first_name, last_name, position, position_group), "
             "session:session_id(session_date, season, competition)"
-        ).eq("session_id", session_id).execute()
+        ).eq("session_id", session_id).eq("score_type", OFFICIAL_COUG_SCORE_TYPE).eq(
+            "data_source_path", OFFICIAL_COUG_DATA_SOURCE
+        ).execute()
 
         stints = get_client().table("athlete_session_stint").select(
             "athlete_id, minutes_on, minutes_off, started"
@@ -434,6 +469,9 @@ def get_coug_scores_with_minutes(session_id: str) -> list[dict]:
 
         result = []
         for r in (scores.data or []):
+            if not _is_official_coug_score(r, weight_version):
+                continue
+
             a = r.get("athlete") or {}
             s = r.get("session") or {}
             stint = stint_map.get(a.get("id"), {})
@@ -463,16 +501,22 @@ def get_coug_scores_with_minutes(session_id: str) -> list[dict]:
         return []
 
 
-def get_season_leaderboard_with_minutes(season: str) -> list[dict]:
+def get_season_leaderboard_with_minutes(
+    season: str,
+    weight_version: str | None = None,
+) -> list[dict]:
     """
     Season leaderboard — aggregated scores + total minutes across all matches.
     """
     try:
         scores = get_client().table("coug_score").select(
             "aset_score, peak_score, set_piece_score, positional_score, "
-            "load_score, total_score, "
+            "load_score, total_score, score_type, data_source_path, "
+            "scoring_version:scoring_version_id(version), "
             "athlete:athlete_id(id, display_name, first_name, last_name, position, position_group), "
             "session:session_id(season)"
+        ).eq("score_type", OFFICIAL_COUG_SCORE_TYPE).eq(
+            "data_source_path", OFFICIAL_COUG_DATA_SOURCE
         ).execute()
 
         stints = get_client().table("athlete_session_stint").select(
@@ -490,6 +534,9 @@ def get_season_leaderboard_with_minutes(season: str) -> list[dict]:
         })
 
         for r in (scores.data or []):
+            if not _is_official_coug_score(r, weight_version):
+                continue
+
             s = r.get("session") or {}
             if s.get("season") != season:
                 continue
@@ -537,13 +584,20 @@ def get_season_leaderboard_with_minutes(season: str) -> list[dict]:
         return []
 
 
-def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
+def get_player_match_history(
+    athlete_id: str,
+    season: str,
+    weight_version: str | None = None,
+) -> list[dict]:
     """Per-match scores + minutes for a single player, with opponent name."""
     try:
         scores = get_client().table("coug_score").select(
             "aset_score, peak_score, set_piece_score, total_score, "
+            "score_type, data_source_path, scoring_version:scoring_version_id(version), "
             "session:session_id(id, session_date, season, competition)"
-        ).eq("athlete_id", athlete_id).execute()
+        ).eq("athlete_id", athlete_id).eq("score_type", OFFICIAL_COUG_SCORE_TYPE).eq(
+            "data_source_path", OFFICIAL_COUG_DATA_SOURCE
+        ).execute()
 
         stints = get_client().table("athlete_session_stint").select(
             "session_id, minutes_on, minutes_off, started"
@@ -576,6 +630,9 @@ def get_player_match_history(athlete_id: str, season: str) -> list[dict]:
 
         result = []
         for r in (scores.data or []):
+            if not _is_official_coug_score(r, weight_version):
+                continue
+
             s = r.get("session") or {}
             if s.get("season") != season:
                 continue

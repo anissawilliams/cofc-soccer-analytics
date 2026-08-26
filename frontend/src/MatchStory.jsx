@@ -152,7 +152,9 @@ export default function MatchStory() {
           <div>
             <div style={{ color: C.gold, fontSize: 11, letterSpacing: 2.5, fontWeight: 800 }}>COFC MATCH ANALYSIS</div>
             <h1 style={{ margin: '5px 0 4px', fontSize: 30, letterSpacing: 1 }}>MATCH STORY</h1>
-            <div style={{ color: C.muted, fontSize: 13 }}>A chronological, source-traceable view of what counted and when.</div>
+            <div style={{ color: C.muted, fontSize: 13 }}>
+              A chronological view of mapped event rows with COUG weights applied. This is not the full published COUG Table total.
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <select value={season} onChange={e => {
@@ -187,7 +189,7 @@ export default function MatchStory() {
                 {match.goals_for ?? '–'} <span style={{ color: C.muted }}>:</span> {match.goals_against ?? '–'}
               </div>
               <div style={{ display: 'flex', gap: 24 }}>
-                {[['EVENTS', story.summary.events], ['PLAYERS', story.summary.players], ['COUG', score(story.summary.total)]].map(([label, value]) => (
+                {[['EVENTS', story.summary.events], ['PLAYERS', story.summary.players], ['TIMELINE PTS', score(story.summary.total)]].map(([label, value]) => (
                   <div key={label} style={{ textAlign: 'right' }}><div style={{ color: C.muted, fontSize: 9, letterSpacing: 1.5 }}>{label}</div><strong style={{ fontSize: 18 }}>{value}</strong></div>
                 ))}
               </div>
@@ -230,7 +232,7 @@ export default function MatchStory() {
               <div style={{ color: bucketColor(selectedEvent.score_bucket), fontWeight: 800, marginTop: 4 }}>{selectedEvent.metric_name}</div>
               <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 18, paddingTop: 14, display: 'grid', gap: 10, fontSize: 12 }}>
                 <div><span style={{ color: C.muted }}>Outcome</span><br />{selectedEvent.outcome || 'Not supplied'}</div>
-                <div><span style={{ color: C.muted }}>Contribution</span><br />{selectedEvent.contribution === null ? 'Unweighted evidence' : score(selectedEvent.contribution)}</div>
+                <div><span style={{ color: C.muted }}>Timeline contribution</span><br />{selectedEvent.contribution === null ? 'Unweighted event' : score(selectedEvent.contribution)}</div>
                 <div><span style={{ color: C.muted }}>Source</span><br />{selectedEvent.source_platform || selectedEvent.source_name || 'Source pending'}</div>
                 <div><span style={{ color: C.muted }}>Labels</span><br />{selectedEvent.labels?.join(' · ') || 'None'}</div>
               </div>

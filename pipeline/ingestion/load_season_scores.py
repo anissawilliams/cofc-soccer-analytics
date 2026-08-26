@@ -1,15 +1,16 @@
 """
 load_season_scores.py
 =====================
-Loads season COUG score outputs into Supabase and refreshes the dashboard read
-model after successful writes.
+Loads season match metadata/minutes into Supabase and refreshes the dashboard
+read model after successful writes. Legacy CSV score totals are skipped by
+default; official COUG scores should be published from event-derived evidence.
 
 Load order per match:
   1. Session (upsert from manifest)
   2. Match   (upsert from manifest)
   3. Athletes (upsert by display_name)
   4. Stints  (insert into athlete_session_stint from minutes column)
-  5. COUG scores (insert into coug_score table)
+  5. COUG scores (legacy CSV score insert only with --load-legacy-scores)
 
 Usage:
     python load_season_scores.py --season 2025
@@ -266,6 +267,7 @@ def load_coug_scores(
     scores_df: pd.DataFrame,
     athlete_map: dict,
     weight_version_id: str,
+    scoring_version_id: str,
     dry_run: bool,
 ):
     inserted = skipped = 0
@@ -289,6 +291,7 @@ def load_coug_scores(
             "athlete_id":       athlete_id,
             "session_id":       session_id,
             "weight_version_id": weight_version_id,
+            "scoring_version_id": scoring_version_id,
             "aset_score":       float(row.get("aset", 0) or 0),
             "peak_score":       float(row.get("peak", 0) or 0),
             "set_piece_score":  0.0,
@@ -319,8 +322,24 @@ def get_weight_version_id(sb: Client, version: str = "trial_1") -> str:
     raise ValueError(f"Weight version '{version}' not found in metric_weight table")
 
 
+def get_scoring_version_id(sb: Client, version: str = "trial_1") -> str:
+    result = sb.table("scoring_version").select("id").eq("version", version).limit(1).execute()
+    if result.data:
+        return result.data[0]["id"]
+    raise ValueError(f"Scoring version '{version}' not found in scoring_version table")
+
+
 # ── Per-match loader ──────────────────────────────────────────────────────────
-def load_match_scores(sb: Client, slug: str, season: str, manifest: dict, weight_version_id: str, dry_run: bool):
+def load_match_scores(
+    sb: Client,
+    slug: str,
+    season: str,
+    manifest: dict,
+    weight_version_id: str,
+    scoring_version_id: str,
+    dry_run: bool,
+    load_legacy_scores: bool = False,
+):
     log.info(f"\n{'='*55}")
     log.info(f"  {slug}")
     log.info(f"{'='*55}")
@@ -351,8 +370,19 @@ def load_match_scores(sb: Client, slug: str, season: str, manifest: dict, weight
     # 4. Stints (minutes played per athlete)
     load_stints(sb, session_id, scores_df, athlete_map, dry_run)
 
-    # 5. COUG scores
-    load_coug_scores(sb, session_id, scores_df, athlete_map, weight_version_id, dry_run)
+    # 5. Legacy COUG scores
+    if load_legacy_scores:
+        load_coug_scores(
+            sb,
+            session_id,
+            scores_df,
+            athlete_map,
+            weight_version_id,
+            scoring_version_id,
+            dry_run,
+        )
+    else:
+        log.info("  Legacy COUG CSV scores skipped; publish official scores from event-derived XML.")
 
     log.info(f"  ✅ Done: {slug}")
     return True
@@ -364,13 +394,16 @@ def load_season(
     slug_filter: str | None,
     dry_run: bool,
     refresh_read_model: bool = True,
+    load_legacy_scores: bool = False,
 ):
     sb       = get_client() if not dry_run else get_client()  # need client even for dry run for lookups
     manifest = load_manifest()
 
     # Get weight version once
     weight_version_id = get_weight_version_id(sb, "trial_1")
+    scoring_version_id = get_scoring_version_id(sb, "trial_1")
     log.info(f"Using weight version: trial_1 ({weight_version_id})")
+    log.info(f"Using scoring version: trial_1 ({scoring_version_id})")
 
     # Find all match folders
     season_dir = OUTPUTS_DIR / season
@@ -390,11 +423,22 @@ def load_season(
     log.info(f"\nSeason {season} — {len(slugs)} match(es) to process")
     if dry_run:
         log.info("[DRY RUN — no writes to Supabase]\n")
+    if load_legacy_scores:
+        log.warning("Legacy CSV score loading is enabled. Staff-facing COUG totals should use event-derived XML rows.")
 
     success = fail = skip = 0
     for slug in slugs:
         try:
-            result = load_match_scores(sb, slug, season, manifest, weight_version_id, dry_run)
+            result = load_match_scores(
+                sb,
+                slug,
+                season,
+                manifest,
+                weight_version_id,
+                scoring_version_id,
+                dry_run,
+                load_legacy_scores=load_legacy_scores,
+            )
             if result:
                 success += 1
             else:
@@ -439,6 +483,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Skip the automatic dashboard JSON refresh after database writes",
     )
+    parser.add_argument(
+        "--load-legacy-scores",
+        action="store_true",
+        help="Also insert legacy *_coug_scores.csv totals into coug_score. Not for staff-facing official scoring.",
+    )
     args = parser.parse_args()
 
     load_season(
@@ -446,4 +495,5 @@ if __name__ == "__main__":
         slug_filter=args.slug,
         dry_run=args.dry_run,
         refresh_read_model=not args.no_refresh_read_model,
+        load_legacy_scores=args.load_legacy_scores,
     )
