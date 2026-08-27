@@ -1,7 +1,7 @@
 const API_CACHE_TTL_MS = 5 * 60_000;
 const MAX_MEMORY_ENTRIES = 50;
 const MAX_SESSION_ENTRY_CHARS = 100_000;
-const STORAGE_PREFIX = 'cofc_api_cache:v2:';
+const STORAGE_PREFIX = 'cofc_api_cache:v3:';
 const responseCache = new Map();
 const requestsInFlight = new Map();
 
@@ -35,6 +35,11 @@ export async function cachedApiFetch(apiBase, path) {
       return res.json();
     })
     .then(data => {
+      // Empty collections are common immediately before a match publication.
+      // Do not let that temporary state hide newly published data for the full
+      // client cache TTL (or survive a page refresh in session storage).
+      if (Array.isArray(data) && data.length === 0) return data;
+
       const entry = { cachedAt: Date.now(), data };
       responseCache.set(cacheKey, entry);
       trimMemoryCache();
