@@ -58,6 +58,7 @@ class MatchIntakeNotebookTests(unittest.TestCase):
         self.assertIn("expected = f'PUBLISH {MATCH_SLUG}'", code)
         self.assertIn("PUBLISHED AND VERIFIED", code)
         self.assertIn("prepare_match_intake.py", code)
+        self.assertIn("pypdf>=5.0.0", code)
         self.assertIn("Inspect source files and refresh intake readiness", code)
         self.assertLess(
             code.index("display(Markdown(VALIDATION_PATH.read_text"),
