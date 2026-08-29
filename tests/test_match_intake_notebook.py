@@ -57,6 +57,12 @@ class MatchIntakeNotebookTests(unittest.TestCase):
         self.assertEqual(code.count("input("), 1)
         self.assertIn("expected = f'PUBLISH {MATCH_SLUG}'", code)
         self.assertIn("PUBLISHED AND VERIFIED", code)
+        self.assertIn("prepare_match_intake.py", code)
+        self.assertIn("Inspect source files and refresh intake readiness", code)
+        self.assertLess(
+            code.index("display(Markdown(VALIDATION_PATH.read_text"),
+            code.index("Publication stopped after intake review"),
+        )
         self.assertNotIn("APPLY_EVIDENCE =", code)
         self.assertNotIn("APPLY_STAFF_EVENTS =", code)
         self.assertNotIn("APPLY_ARCHIVE =", code)
