@@ -144,13 +144,26 @@ def validate_approval(approval: dict, report: dict, report_path: Path) -> dict[s
         raise PromotionError("Match analytics were approved, but the intake report says they are not ready.")
     if approvals["coug_scoring"] and not report.get("scoring", {}).get("ready"):
         raise PromotionError("COUG scoring was approved, but the intake report says it is not ready.")
-    if approvals["coug_scoring"] and not report.get("minutes", {}).get("ready"):
+    minutes_ready = bool(report.get("minutes", {}).get("ready"))
+    limitation = (approval.get("limitations") or {}).get("official_minutes") or {}
+    minutes_exception = (
+        not minutes_ready
+        and limitation.get("acknowledged") is True
+        and bool(str(limitation.get("reason") or "").strip())
+        and (report.get("metadata") or {}).get("official_minutes_status") == "unavailable"
+        and bool(str((report.get("metadata") or {}).get("official_minutes_reason") or "").strip())
+    )
+    if approvals["coug_scoring"] and not minutes_ready and not minutes_exception:
         raise PromotionError(
-            "COUG scoring was approved, but official minutes and starters are not ready."
+            "COUG scoring was approved, but official minutes and starters are not ready. "
+            "A reviewed official-minutes limitation is required to publish without them."
         )
     if report.get("validation", {}).get("status") == "blocked":
         raise PromotionError("Blocked intake bundles cannot be promoted.")
-    return {key: approvals[key] for key in APPROVAL_KEYS}
+    return {
+        **{key: approvals[key] for key in APPROVAL_KEYS},
+        "_official_minutes_exception": minutes_exception,
+    }
 
 
 def verify_source_manifest(source_dir: Path, report: dict) -> dict[str, dict]:
@@ -187,8 +200,10 @@ def build_candidates(
         required_suffixes.update({"canonical_team_events.csv", "match_flow.json"})
     if approvals["coug_scoring"]:
         required_suffixes.update({
-            "players.csv", "all_player_events.csv", "sportscode_team_events.csv", "minutes.csv"
+            "players.csv", "all_player_events.csv", "sportscode_team_events.csv"
         })
+        if not approvals.get("_official_minutes_exception"):
+            required_suffixes.add("minutes.csv")
     missing = [suffix for suffix in sorted(required_suffixes) if not (bundle_dir / f"{slug}_{suffix}").is_file()]
     if missing:
         raise PromotionError(f"Approved review bundle is missing: {', '.join(missing)}")
@@ -297,6 +312,7 @@ def row_payload(candidate: PromotionCandidate, report: dict, approval: dict, buc
             "reviewed_by": approval["reviewed_by"],
             "reviewed_at": approval["reviewed_at"],
             "approval_notes": approval.get("notes", ""),
+            "limitations": approval.get("limitations") or {},
         },
         "is_active": True,
     }
@@ -331,6 +347,7 @@ def write_receipt(bundle_dir: Path, report: dict, approval: dict, rows: list[dic
         "created_at": datetime.now(timezone.utc).isoformat(),
         "reviewed_by": approval["reviewed_by"],
         "approvals": approval["approvals"],
+        "limitations": approval.get("limitations") or {},
         "session_id": next((row.get("session_id") for row in rows if row.get("session_id")), None),
         "objects": rows,
     }

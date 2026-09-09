@@ -60,6 +60,16 @@ class MatchIntakeNotebookTests(unittest.TestCase):
         self.assertIn("prepare_match_intake.py", code)
         self.assertIn("pypdf>=5.0.0", code)
         self.assertIn("Inspect source files and refresh intake readiness", code)
+        self.assertIn("MATCH_METADATA = {", code)
+        self.assertIn("required_metadata =", code)
+        self.assertIn("'--metadata', str(metadata_path)", code)
+        self.assertIn("official_minutes_status", code)
+        self.assertIn("LIMITATION ACKNOWLEDGED", code)
+        self.assertIn("'limitations': {", code)
+        self.assertLess(
+            code.index("missing_metadata ="),
+            code.index("Inspect source files and refresh intake readiness"),
+        )
         self.assertLess(
             code.index("display(Markdown(VALIDATION_PATH.read_text"),
             code.index("Publication stopped after intake review"),

@@ -190,6 +190,40 @@ class MatchPromotionTests(unittest.TestCase):
         with self.assertRaisesRegex(PromotionError, "official minutes"):
             validate_approval(self.approval, self.report, self.report_path)
 
+    def test_coug_scoring_allows_audited_missing_minutes_exception(self):
+        self.report["scoring"] = {"ready": True}
+        self.report["metadata"] = {
+            "official_minutes_status": "unavailable",
+            "official_minutes_reason": "Official media box score was not produced.",
+        }
+        self.report_path.write_text(json.dumps(self.report), encoding="utf-8")
+        self.approval["intake_report_sha256"] = sha256_file(self.report_path)
+        self.approval["approvals"]["coug_scoring"] = True
+        self.approval["limitations"] = {
+            "official_minutes": {
+                "acknowledged": True,
+                "reason": "Official media box score was not produced.",
+            }
+        }
+        for suffix in ("players.csv", "all_player_events.csv", "sportscode_team_events.csv"):
+            (self.bundle / f"{self.slug}_{suffix}").write_text("event\n", encoding="utf-8")
+
+        approvals = validate_approval(self.approval, self.report, self.report_path)
+        self.assertTrue(approvals["_official_minutes_exception"])
+        candidates = build_candidates(
+            self.source, self.bundle, self.report, approvals, prefix="cofc"
+        )
+        self.assertFalse(any(row.source_type == "official_minutes" for row in candidates))
+
+    def test_missing_minutes_exception_requires_report_metadata(self):
+        self.report["scoring"] = {"ready": True}
+        self.approval["approvals"]["coug_scoring"] = True
+        self.approval["limitations"] = {
+            "official_minutes": {"acknowledged": True, "reason": "Unavailable"}
+        }
+        with self.assertRaisesRegex(PromotionError, "official minutes"):
+            validate_approval(self.approval, self.report, self.report_path)
+
     def test_dry_run_needs_no_supabase_credentials(self):
         script = INGESTION_DIR / "promote_match_intake.py"
         result = subprocess.run(
