@@ -1,5 +1,16 @@
 # Notebooks
 
+## 2026_opponent_trends.ipynb — current opponent scouting lab
+
+This is the supported undergraduate-facing Colab workflow for studying an
+upcoming opponent's recent form. Upload 5–10 Wyscout team match-stat exports,
+set the exact opponent name and upcoming match date, and run top to bottom. The
+notebook reconciles two team rows per match, excludes the scouted match and all
+later data, visualizes recent trends, and downloads a sourced evidence packet.
+
+The evidence packet supports analyst and video review; it does not automate
+tactical conclusions or coaching recommendations.
+
 ## 2026_match_intake.ipynb — current post-match intake
 
 This is the supported undergraduate-facing Google Colab workflow. It mounts the

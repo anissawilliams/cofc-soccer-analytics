@@ -9,6 +9,18 @@ from COUG Table scoring:
 
 ## Current Build
 
+The supported undergraduate-facing 2026 opponent trends notebook is:
+
+```text
+pipeline/notebooks/2026_opponent_trends.ipynb
+```
+
+It accepts native Wyscout team match-stat workbooks (or equivalent CSVs),
+requires both team rows for each match, and applies a strict pre-match cutoff to
+prevent future-match leakage. Its downloaded evidence packet contains the
+reconciled history, recent-form summary, trend chart, and an analyst review
+brief.
+
 The first reusable command is:
 
 ```bash
