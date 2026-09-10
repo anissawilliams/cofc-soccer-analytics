@@ -26,7 +26,8 @@ class OpponentTrendsNotebookTests(unittest.TestCase):
     def test_notebook_has_leakage_and_reconciliation_guards(self):
         self.assertIn("SCOUTING_DATE", self.code)
         self.assertIn("load_opponent_history(input_paths, OPPONENT_NAME, SCOUTING_DATE)", self.code)
-        self.assertIn("No supported Wyscout team-stat workbooks", self.code)
+        self.assertIn("No supported Wyscout Match Report PDFs", self.code)
+        self.assertIn("'pypdf>=5.0.0'", self.code)
 
     def test_notebook_exports_evidence_not_automated_tactics(self):
         self.assertIn("opponent_match_history.csv", self.code)

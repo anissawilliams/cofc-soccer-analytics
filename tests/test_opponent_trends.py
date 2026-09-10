@@ -6,6 +6,7 @@ import pandas as pd
 
 from pipeline.scouting.features import MATCH_COLUMNS
 from pipeline.scouting.opponent_trends import (
+    _parse_match_report_text,
     build_opponent_trends,
     load_opponent_history,
     summarize_recent_form,
@@ -13,6 +14,31 @@ from pipeline.scouting.opponent_trends import (
 
 
 class OpponentTrendTests(unittest.TestCase):
+    def test_parses_full_wyscout_match_report_text(self):
+        cover = """MATCH REPORT
+UNCW Seahawks
+Elon Phoenix
+1 – 0
+05/09/2026 United States. NCAA D1 Coastal Athletic Association Round 2
+"""
+        stats = """Goals 1 0
+xG 0.65 0.88
+Shots / on target 9/4 7/3
+Recoveries / low / medium / high 67/36/23/8 88/36/35/17
+Losses / low / medium / high 107/19/40/48 114/9/39/66
+Total duels / won 211/98 46% 211/107 51%
+Possession % 45 55
+Total passes / accurate 347/280 81% 489/410 84%
+"""
+        frame = _parse_match_report_text(cover, stats, "Elon Phoenix")
+        self.assertEqual(list(frame["team"]), ["UNCW Seahawks", "Elon Phoenix"])
+        self.assertEqual(list(frame["result"]), ["W", "L"])
+        elon = frame.iloc[1]
+        self.assertEqual(elon["xg"], 0.88)
+        self.assertEqual(elon["shots_on_target"], 3)
+        self.assertEqual(elon["recoveries_high"], 17)
+        self.assertEqual(elon["passes_accurate"], 410)
+
     def _row(self, date, match, team, goals, xg):
         values = {column: 0 for column in MATCH_COLUMNS}
         values.update(
