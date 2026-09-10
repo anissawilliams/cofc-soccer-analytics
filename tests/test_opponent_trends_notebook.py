@@ -40,6 +40,11 @@ class OpponentTrendsNotebookTests(unittest.TestCase):
         )
         self.assertIn("coaches remain responsible for tactical interpretation", markdown)
 
+    def test_every_chart_panel_has_axis_labels(self):
+        for row, column in ((0, 0), (0, 1), (1, 0), (1, 1)):
+            self.assertIn(f"axes[{row}, {column}].set_xlabel", self.code)
+            self.assertIn(f"axes[{row}, {column}].set_ylabel", self.code)
+
 
 if __name__ == "__main__":
     unittest.main()
