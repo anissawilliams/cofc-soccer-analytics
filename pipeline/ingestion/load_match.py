@@ -227,6 +227,29 @@ def home_away_team_ids(
     return cofc_id, opponent_id
 
 
+def _team_key(value: object) -> str:
+    """Normalize team names without losing meaningful initials."""
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+
+def resolve_opponent_team_id(
+    teams: list[dict],
+    opponent_slug: str,
+    manifest_row: dict | None,
+) -> str | None:
+    """Resolve an opponent by reviewed name first, then by the loader slug."""
+    candidates = [(manifest_row or {}).get("opponent"), opponent_slug]
+    keys = [_team_key(candidate) for candidate in candidates if candidate]
+    for key in keys:
+        matches = [
+            row for row in teams
+            if key in {_team_key(row.get("name")), _team_key(row.get("short_name"))}
+        ]
+        if len(matches) == 1:
+            return matches[0]["id"]
+    return None
+
+
 def load_or_create_session(
     sb: Client,
     slug: str,
@@ -312,18 +335,18 @@ def load_or_create_match(
     # Resolve team IDs
     _, opponent_slug = parse_slug(slug)
     cofc_team   = sb.table("team").select("id").eq("is_cofc", True).execute()
-    opp_team    = (
-        sb.table("team")
-        .select("id")
-        .ilike("short_name", f"%{opponent_slug}%")
-        .execute()
-    )
+    teams = sb.table("team").select("id, name, short_name").execute().data or []
 
     cofc_id = cofc_team.data[0]["id"] if cofc_team.data else None
-    opp_id  = opp_team.data[0]["id"]  if opp_team.data  else None
+    opp_id = resolve_opponent_team_id(teams, opponent_slug, manifest_row)
 
     if not opp_id:
-        log.warning(f"  Team not found for slug '{opponent_slug}' — opponent team ID will be null")
+        opponent_name = (manifest_row or {}).get("opponent") or opponent_slug
+        raise ValueError(
+            f"Opponent team not found: '{opponent_name}'. Add it to the team table before loading."
+        )
+    if not cofc_id:
+        raise ValueError("College of Charleston team row was not found (is_cofc=true).")
 
     # Goals from manifest
     goals_for = None

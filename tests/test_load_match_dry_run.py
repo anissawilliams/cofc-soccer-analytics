@@ -17,6 +17,7 @@ from pipeline.ingestion.load_match import (
     load_bundle_manifest_row,
     load_or_create_match,
     load_stints,
+    resolve_opponent_team_id,
 )
 
 
@@ -45,7 +46,7 @@ class Client:
         self.tables = {
             "team": [
                 {"id": "cofc", "is_cofc": True, "short_name": "Charleston"},
-                {"id": "davidson", "is_cofc": False, "short_name": "Davidson"},
+                {"id": "davidson", "is_cofc": False, "name": "Davidson College", "short_name": "Davidson"},
             ],
         }
         self.requested = []
@@ -93,6 +94,20 @@ class LoadMatchDryRunTests(unittest.TestCase):
             home_away_team_ids("cofc", "opponent", {"location": "away"}),
             ("opponent", "cofc"),
         )
+
+    def test_reviewed_name_resolves_william_and_mary_short_name(self):
+        teams = [
+            {"id": "wm", "name": "William & Mary", "short_name": "W&M"},
+            {"id": "cofc", "name": "College of Charleston", "short_name": "CofC"},
+        ]
+
+        opponent_id = resolve_opponent_team_id(
+            teams,
+            "william_mary",
+            {"opponent": "William & Mary"},
+        )
+
+        self.assertEqual(opponent_id, "wm")
 
     def test_official_starter_flag_beats_minutes_heuristic(self):
         substitute = pd.Series({
