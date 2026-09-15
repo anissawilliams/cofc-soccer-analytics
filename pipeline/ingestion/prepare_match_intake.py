@@ -624,7 +624,10 @@ def build_validation_summary(report: dict) -> dict:
         attention.append(report.get("analytics", {}).get("reason", "Match analytics are not ready."))
     if not report.get("scoring", {}).get("ready"):
         attention.append(report.get("scoring", {}).get("reason", "Player scoring is not ready."))
-    if not report.get("minutes", {}).get("ready"):
+    if (
+        not report.get("minutes", {}).get("ready")
+        and report.get("minutes", {}).get("required", True)
+    ):
         attention.append(
             report.get("minutes", {}).get(
                 "reason", "Official minutes and starters are not ready."
@@ -655,6 +658,12 @@ def build_validation_summary(report: dict) -> dict:
 
 def render_validation_report(report: dict) -> str:
     validation = report["validation"]
+    minutes = report["minutes"]
+    minutes_label = (
+        "ready" if minutes.get("ready")
+        else "unavailable (accepted)" if not minutes.get("required", True)
+        else "not ready"
+    )
     lines = [
         f"# Match intake review: {report['slug']}",
         "",
@@ -666,7 +675,7 @@ def render_validation_report(report: dict) -> str:
         "",
         f"- Match analytics: {'ready' if report['analytics']['ready'] else 'not ready'} — {report['analytics']['reason']}",
         f"- COUG player scoring: {'ready' if report['scoring']['ready'] else 'not ready'} — {report['scoring']['reason']}",
-        f"- Official minutes/lineups: {'ready' if report['minutes']['ready'] else 'not ready'} — {report['minutes']['reason']}",
+        f"- Official minutes/lineups: {minutes_label} — {minutes['reason']}",
         f"- Staff events: {'ready' if report['staff_events']['ready'] else 'not ready'} — {report['staff_events']['reason']}",
         f"- Source files inventoried: {validation['source_files']}",
         "",
@@ -765,6 +774,19 @@ def main() -> None:
         if not isinstance(metadata, dict):
             raise ValueError("Match metadata must be a JSON object")
         report["metadata"] = metadata
+        if metadata.get("official_minutes_status") == "unavailable":
+            unavailable_reason = str(
+                metadata.get("official_minutes_reason") or "source unavailable"
+            ).strip()
+            report["minutes"] = {
+                **report["minutes"],
+                "required": False,
+                "accepted": True,
+                "reason": (
+                    f"official minutes unavailable ({unavailable_reason}); "
+                    "Wyscout-only intake accepted"
+                ),
+            }
     report["validation"] = build_validation_summary(report)
     print(json.dumps(report, indent=2, sort_keys=True))
     if args.dry_run:

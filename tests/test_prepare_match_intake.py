@@ -86,6 +86,27 @@ class MatchIntakeTests(unittest.TestCase):
         self.assertEqual(profile.kind, "team_event_xml")
         self.assertEqual(profile.team, "Charleston Cougars")
 
+    def test_intentionally_unavailable_minutes_are_not_a_review_item(self):
+        report = {
+            "files": [],
+            "source_manifest": [{"relative_path": "match.xml"}],
+            "analytics": {"ready": True, "reason": "ready"},
+            "scoring": {"ready": True, "reason": "ready"},
+            "minutes": {
+                "ready": False,
+                "required": False,
+                "accepted": True,
+                "reason": "official minutes unavailable (away game); Wyscout-only intake accepted",
+            },
+            "staff_events": {"ready": True, "supplied": False},
+            "team_event_summary": {"unmapped_labels": {}},
+        }
+
+        validation = build_validation_summary(report)
+
+        self.assertEqual(validation["status"], "ready_for_staff_review")
+        self.assertEqual(validation["items_for_review"], [])
+
     def test_mirrored_perspectives_are_deduplicated(self):
         events, summary = merge_team_event_pair([self.cofc, self.opponent], "2026-08-20_opponent")
         self.assertEqual(len(events), 2)
